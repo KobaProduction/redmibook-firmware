@@ -181,3 +181,32 @@ The version delta is highly localized:
 - All other validated FV ranges in the current map compare byte-identical between A0A and B0B.
 
 This means the B0B update is not a broad platform-image rewrite. The primary next behavior-analysis target is the `0x005E2AF0..0x009E0AF0` firmware volume and its contained FFS modules. Other identical volumes can be deprioritized until a cross-component dependency requires them.
+
+
+## Decompressed A0A -> B0B module delta
+
+Evidence state: **CONFIRMED**.
+
+The primary changed outer FV contains one large `EFI_FV_FILETYPE_FIRMWARE_VOLUME_IMAGE` FFS file:
+
+- GUID: `20BC8AC9-94D1-4208-AB28-5D673FD73486`
+- wrapped by GUID-defined section `EE4E5898-3914-4259-9D6E-DC7BD79403CF`
+- section payload is LZMA-compressed
+- decompressed size is `0x14F8080` in both A0A and B0B
+- decompressed image contains one top-level FV at offset `0x80`, length `0x14F8000`
+
+That FV contains 356 parsed FFS files. Cross-version matching by FFS GUID localized the meaningful changed set to three files:
+
+1. `80CF7257-87AB-47F9-A3FE-D50B76D89541` — UI name `PcdSmmDxe`, file type `0x0C` (combined SMM/DXE).
+2. `F9D88642-0737-49BC-81B5-6889CD57D9EA` — UI name `SmbiosDxe`, file type `0x07` (DXE driver).
+3. `FE3542FE-C1D3-4EF8-657C-8048606FF670` — UI name `SetupUtility`, file type `0x07` (DXE driver).
+
+PE32 section comparison:
+
+- `PcdSmmDxe`: 40,960 bytes, A0A and B0B PE32 payloads are byte-identical.
+- `SmbiosDxe`: 89,248 bytes, only 2 PE32 bytes differ.
+- `SetupUtility`: 3,526,432 bytes, only 2 PE32 bytes differ.
+
+Therefore the apparently large compressed-image delta is mostly compression avalanche and/or non-PE data changes. The executable code delta between these releases is extremely small. Future version analysis should compare decompressed FFS sections rather than raw compressed bytes.
+
+Stable Analysis module names are stored in Files under `artifacts/redmibook-tm2309/modules/`, preserving version, source, UI name and FFS GUID.
