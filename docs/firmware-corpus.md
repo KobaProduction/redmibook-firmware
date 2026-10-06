@@ -229,6 +229,88 @@ The seven differences localize to:
 
 1. `PcdSmmDxe` raw-data section — 3 bytes, changing the embedded release date text from `06/04/2024` to `06/10/2025`. Its PE32 executable section is byte-identical.
 2. `SetupUtility` PE32 image — 2 bytes inside the embedded BIOS-ID string, changing `RMAMT6B0P0A0A` to `RMAMT6B0P0B0B`.
-3. `SmbiosDxe` PE32 image — 2 immediate values changing `0x0A` to `0x0B`. Their semantic role is **LIKELY** release-version publication, but this is not yet behavior-proven.
+3. `SmbiosDxe` PE32 image — 2 immediate values changing `0x0A` to `0x0B`. Both are **CONFIRMED** writes to the SMBIOS Type 0 System BIOS Minor Release field (`+0x15` within the 16-bit major/minor pair at `+0x14`), changing the published BIOS release from 1.10 to 1.11 in two construction paths.
 
 Therefore the previous interpretation that the 2025 package broadly changes the large firmware volume is **WITHDRAWN**. The large compressed-byte delta is explained by LZMA recompression sensitivity. Current evidence does not yet prove a functional behavior change between these two releases.
+
+
+## Release 2024-04-07 -> installed release 2024-06-04
+
+Evidence state: **CONFIRMED structural/module delta**. Per-action behavior claims remain separately classified.
+
+The earlier Microsoft package reports driver version `1.9.1.9` and firmware-resource revision `0x72195031`. Its decompressed firmware-volume payload is materially different from the installed 2024-06-04 release.
+
+Module-level FFS/PE matching by FFS GUID gives:
+
+- 314 valid PE modules in the 2024-04-07 payload;
+- 319 valid PE modules in the installed 2024-06-04 payload;
+- 143 byte-identical PE modules;
+- 171 same-GUID PE modules with changed files;
+- 5 added PE modules;
+- 0 removed PE modules.
+
+Added modules are:
+
+- `CheckBootGuardKeyDxe` — GUID `25264B72-7A80-4856-A7EC-15802270EE1B`;
+- `StatusCodeLoggerDxe` — GUID `9498F6C5-1B77-4AE7-A045-DBC29EB5541D`;
+- `DnsDxe` — GUID `B219E140-DFFC-11E3-B956-0022681E6906`;
+- `StatusCodeLoggerSmm` — GUID `EF0D2ECB-AE7B-4ED2-8848-F39290D19322`;
+- one currently unnamed PE-bearing FFS file — GUID `FEA01457-E381-4135-9475-C6AFD0076C61`.
+
+### Control-path triage
+
+Raw file-size/hash differences were rechecked against each PE section's meaningful `VirtualSize`, so file-alignment padding is not treated as behavior evidence.
+
+- `OemWMISmmCallback` — GUID `FAD93433-76B9-4482-4567-3BEACEA9B35D`: all meaningful section bytes are identical. **CONFIRMED: no code/data behavior delta**; the file difference is alignment/padding only.
+- `ThermalSmm` — GUID `8C916319-1334-419A-9F2C-976CABFDBBCA`: all meaningful section bytes are identical. **CONFIRMED: no code/data behavior delta**; the file difference is alignment/padding only.
+- `DxeCpuPowerManagement` — GUID `FDBC2130-2A17-4830-8477-544F3669772F`: real code/data changes exist and were analyzed instruction-by-instruction.
+
+### DxeCpuPowerManagement semantic delta
+
+Normalized instruction comparison removes relative-address/layout shifts while retaining opcode/operand behavior:
+
+- old release: 2102 decoded instructions;
+- installed release: 2103 decoded instructions;
+- normalized similarity: 99.88%;
+- three diff blocks total:
+  1. one added CPUID/platform-signature check;
+  2. one padding `INT3` difference;
+  3. one classifier-table bound change.
+
+The module contains a 12-byte-entry classifier keyed by:
+
+- masked CPUID family/model signature;
+- 16-bit processor Host Device ID;
+- a small result/class code.
+
+The installed release adds CPUID signature `0x000B0650` to an existing special-case route and adds two classifier rows for that signature. Intel public documentation identifies `B0650` as Arrow Lake U / Core Ultra Series 2. The existing `0x000A06A0` family is the stepping-masked Meteor Lake family. Host Device IDs in the table (`0x7Dxx`) match Intel's documented processor Host Device IDs.
+
+The classifier table changes from 34 to 23 entries:
+
+- all 11 `A06A0` rows are retained unchanged;
+- all four `A06C0` rows are removed;
+- two `C0650` rows are removed while six remain;
+- four `C0660` rows returning class 3 remain, while seven class-1 rows are removed;
+- two new `B0650` rows are added (`0x7D30`, `0x7D37`), both returning class 0.
+
+The caller uses class `4` as the unmatched/fallback result. In the recovered route it only distinguishes `class <= 3` from fallback `4`; semantic meanings of classes `0/1/3` remain **UNKNOWN**.
+
+### Target-specific implication for Core Ultra 7 155H
+
+Intel documents Core Ultra 7 155H as Meteor Lake H with 6 performance cores, 8 efficient cores and 2 low-power efficient cores. Intel's Meteor Lake processor datasheet maps H 6P+8E to Host Device ID `0x7D01`.
+
+The firmware classifier row:
+
+`masked CPUID A06A0 + Host Device ID 7D01 -> class 0`
+
+is byte-identical in the 2024-04-07 and installed 2024-06-04 releases. The added `B0650` special-case test also does not alter the already-existing `A06A0` branch.
+
+Therefore the version delta provides **implementation proof that the known 155H/Meteor-Lake classifier path itself is unchanged**. Actual runtime CPUID/Host-DID observation on this individual laptop has not yet been collected, so hardware/runtime identity remains a separate evidence level.
+
+### CPU Power NVS behavior contract
+
+The same module scans AML for an `OperationRegion` named `PNVS`, patches its SystemMemory base address and writes region length `0x126`. It zero-initializes a `0x126`-byte backing block and fills it from CPU feature state and MSRs including `0x194` and `0x1A2`.
+
+This establishes the recovered object as a **CPU Power NVS** region at implementation-proof level. Individual field names remain provisional until their exact AML/MSR consumer semantics are closed.
+
+The module also references dynamically loaded power-management SSDTs named `Cpu0Cst`, `Cpu0Hwp`, `Cpu0Ist`, `Cpu0Psd`, `Cpu0Tst` and `CpuSsdt`, consistent with the recovered CPU power-management route.
