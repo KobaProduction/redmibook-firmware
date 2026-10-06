@@ -53,3 +53,25 @@ The Windows firmware resource metadata is distinct from the SMBIOS BIOS version 
 ## Next evidence path
 
 Export and inspect the installed `oem77.inf` driver package. This may provide the Xiaomi capsule/update payload already staged in the Windows Driver Store without requiring SPI access.
+
+
+## Exported Xiaomi firmware package
+
+Evidence state: **CONFIRMED** from the target system.
+
+Installed Windows firmware driver package `oem77.inf` exports as `wufu.inf` and contains:
+
+- `wucapsule.bin` — 23,337,736 bytes
+- `wufu.cat`
+- `wufu.inf`
+
+The INF targets UEFI firmware resource GUID `7084A80E-AAFF-5B13-B343-35EB8DCBD86A` and declares:
+
+- provider: Xiaomi
+- driver version: `1.9.1.9`
+- firmware version: `0x72195031`
+- capsule filename: `wucapsule.bin`
+
+The currently exposed Windows firmware resource reports version `0x72195032`, one numeric revision above the exported INF's `0x72195031`. The reason for this mismatch is not yet established; likely explanations include a newer installed capsule than the retained driver package or version transformation/staging behavior. Treat the relationship as **UNKNOWN** until the capsule and firmware history are inspected.
+
+No firmware write or SPI access has been performed.
