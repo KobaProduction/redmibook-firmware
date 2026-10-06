@@ -75,3 +75,19 @@ The INF targets UEFI firmware resource GUID `7084A80E-AAFF-5B13-B343-35EB8DCBD86
 The currently exposed Windows firmware resource reports version `0x72195032`, one numeric revision above the exported INF's `0x72195031`. The reason for this mismatch is not yet established; likely explanations include a newer installed capsule than the retained driver package or version transformation/staging behavior. Treat the relationship as **UNKNOWN** until the capsule and firmware history are inspected.
 
 No firmware write or SPI access has been performed.
+
+
+## Firmware payload container format
+
+Evidence state: **CONFIRMED** from target-exported `wucapsule.bin`.
+
+- File size: 23,337,736 bytes
+- SHA-256: `E059052DD9F149CD246D52E400493CCD7472EE1224D8C358B40D3FD13750CCE5`
+- File begins with DOS `MZ` signature.
+- PE signature is present at offset `0xC8`.
+- Machine field is `0x8664` (x86-64).
+- Optional-header magic is `0x20B` (PE32+).
+
+Therefore the exported `wucapsule.bin` is not a raw UEFI capsule at file offset 0. It is a PE/COFF container or executable-style firmware package that must be unpacked/inspected before assuming the embedded firmware layout.
+
+The previous assumption that the whole file was directly the capsule payload is superseded by this evidence.
