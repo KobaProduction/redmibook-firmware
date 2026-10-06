@@ -146,3 +146,25 @@ Major structural anchors remain at the same offsets in both versions:
 - UEFI markers
 
 This supports a stable-layout version-diff strategy: compare corresponding firmware volumes/modules rather than treating B0B as a wholly different image layout.
+
+
+## Firmware-volume map
+
+Evidence state: **CONFIRMED** from UEFI firmware-volume headers in both A0A and B0B embedded images.
+
+Both versions expose the same 15 validated firmware-volume headers at the same offsets and with the same declared lengths. Representative volumes include:
+
+- `0x00211AF0` length `0xAA000`
+- `0x002BEAF0` length `0x2B0000`
+- `0x0056EAF0` length `0x70000`
+- `0x005E2AF0` length `0x3FE000`
+- `0x00A01AF0` length `0xC0000`
+- `0x00B41AF0` length `0x1D5000`
+- `0x00D16AF0` length `0x170000`
+- `0x00E86AF0` length `0xB0000`
+- `0x00F36AF0` length `0xC0000`
+- `0x01097AF0` length `0x14A000`
+
+There are also nested/overlapping firmware-volume headers, including volumes at `0x0029BAF8`, `0x00D6FEF0`, and `0x00E86B60`. These must be treated as nested container evidence, not as fifteen independent top-level regions.
+
+Because A0A and B0B preserve the same FV map, the next analysis pass can compare corresponding volumes and FFS modules directly.
