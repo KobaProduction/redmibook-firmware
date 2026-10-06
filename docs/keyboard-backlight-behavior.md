@@ -19,7 +19,17 @@ KBMD  1 bit
 
 They occupy the byte at EC shared-memory offset `0xB2`.
 
-Only the four observed `KBLL` values below currently have recovered semantics. The role of `KBMD` remains **UNKNOWN**.
+Only the four observed `KBLL` values below currently have recovered semantics.
+
+`KBMD` now has a recovered boot-time control contract, but its UI polarity is not yet closed:
+
+- **CONFIRMED:** `KBMD` is the hidden boot-applied keyboard-backlight mode bit.
+- **CONFIRMED:** `HQDxeService` reads hidden Setup byte `+0x42` and applies it to `KBMD`.
+- **CONFIRMED:** Setup value `0` sets `KBMD=1`; any non-zero Setup value clears `KBMD=0`.
+- **CONFIRMED:** the target HII resources expose the two user-facing mode labels `Always on` and `Power Saving`. Their help text describes always-on behavior in S0 versus turning the keyboard backlight off after approximately 15 seconds of keyboard idle time.
+- **UNKNOWN:** which raw Setup/`KBMD` polarity corresponds to each of those two labels. No direct HII-question/owner-draw binding to Setup offset `+0x42` has yet been proven.
+
+Do not rename `KBMD=0/1` to `POWER_SAVING/ALWAYS_ON` until that final binding is established.
 
 Canonical state enum:
 
@@ -81,4 +91,4 @@ Direct writes to `KBLL` are not currently part of the supported control contract
 - same-model execution evidence: **CONFIRMED**;
 - WMI setter function `0x12`: **CONFIRMED unsupported**;
 - safe software write route: **UNKNOWN**;
-- `KBMD` semantics: **UNKNOWN**.
+- `KBMD` boot-time mode-bit contract: **CONFIRMED**; exact `Power Saving` / `Always on` polarity: **UNKNOWN**.
