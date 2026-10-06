@@ -111,3 +111,38 @@ Planned Analysis program names:
 - `TM2309_0B0B_MS_firmware_raw`
 
 The first 23 MiB staging imports timed out before any project file appeared. This is an Analysis transport/import issue, not target evidence; no ambiguous or partial program was retained in the project.
+
+
+## A0A -> B0B structural delta
+
+Evidence state: **CONFIRMED** from the two Microsoft firmware packages.
+
+Both `wucapsule.bin` files use the same PE32+ layout:
+
+- PE header offset: `0xC8`
+- section count: 4
+- `.text`: raw offset `0x280`, raw size `0x5240`
+- unnamed section: raw offset `0x54C0`, raw size `0x2C0`
+- `.xdata`: raw offset `0x5780`, raw size `0xE0`
+- `.reloc`/embedded firmware block: raw offset `0x5860`, raw size `0x1638720` (23,299,872 bytes)
+
+Embedded firmware SHA-256:
+
+- A0A: `B04F0D9954AA6D8589D814BF8C26BD69D73AFB570AA8BD9C1AAD1FF9B6906C23`
+- B0B: `F05B2FB3DB50ABB3ADABEC303947DE280E689A708E37180A7E38FDA2DA425DDB`
+
+Bytewise comparison across the equal-sized embedded firmware blocks:
+
+- different bytes: 3,551,766
+- changed share: 15.2437%
+- first differing byte: `0x188`
+- last differing byte: `0x1638703`
+
+Major structural anchors remain at the same offsets in both versions:
+
+- multiple `_FVH` firmware-volume headers
+- Intel `$FPT` at `0x11EFAE0`
+- Insyde strings
+- UEFI markers
+
+This supports a stable-layout version-diff strategy: compare corresponding firmware volumes/modules rather than treating B0B as a wholly different image layout.
