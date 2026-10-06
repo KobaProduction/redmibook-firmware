@@ -210,3 +210,25 @@ PE32 section comparison:
 Therefore the apparently large compressed-image delta is mostly compression avalanche and/or non-PE data changes. The executable code delta between these releases is extremely small. Future version analysis should compare decompressed FFS sections rather than raw compressed bytes.
 
 Stable Analysis module names are stored in Files under `artifacts/redmibook-tm2309/modules/`, preserving version, source, UI name and FFS GUID.
+
+
+## Correction: compressed-volume delta was not a behavior delta
+
+Evidence state: **CONFIRMED**.
+
+The earlier bytewise comparison of the compressed outer firmware volume showed 83.858% changed bytes. That result must **not** be interpreted as an 83.858% firmware behavior change.
+
+The dominant FFS object in that volume is a firmware-volume image containing a GUID-defined section with GUID `EE4E5898-3914-4259-9D6E-DC7BD79403CF`, which identifies an LZMA-compressed UEFI section.
+
+After LZMA decompression:
+
+- both releases produce an inner firmware image of exactly 21,987,456 bytes;
+- only **7 bytes** differ across the complete decompressed images.
+
+The seven differences localize to:
+
+1. `PcdSmmDxe` raw-data section — 3 bytes, changing the embedded release date text from `06/04/2024` to `06/10/2025`. Its PE32 executable section is byte-identical.
+2. `SetupUtility` PE32 image — 2 bytes inside the embedded BIOS-ID string, changing `RMAMT6B0P0A0A` to `RMAMT6B0P0B0B`.
+3. `SmbiosDxe` PE32 image — 2 immediate values changing `0x0A` to `0x0B`. Their semantic role is **LIKELY** release-version publication, but this is not yet behavior-proven.
+
+Therefore the previous interpretation that the 2025 package broadly changes the large firmware volume is **WITHDRAWN**. The large compressed-byte delta is explained by LZMA recompression sensitivity. Current evidence does not yet prove a functional behavior change between these two releases.
