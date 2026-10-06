@@ -160,7 +160,18 @@ Field `SystemConfig+0x103`: **System Performance Mode**
 | 2 | Silence Mode |
 | 3 | Full Speed Mode |
 
-The exact static transformation from this `0..3` Setup enum to EC `QFAN=1..4` has not yet been found. Do not treat the two numeric domains as identical.
+The static transformation is now **CONFIRMED** in native module `OemWMISmmCallback`. Its selector `0x0800` loads `SystemConfig` and accesses exactly byte `+0x103`.
+
+Mapping:
+
+| SystemConfig+0x103 | Setup label | QFAN / WMI value |
+| ---: | --- | ---: |
+| 0 | Turbo Mode | 3 |
+| 1 | Balance Mode | 1 |
+| 2 | Silence Mode | 2 |
+| 3 | Full Speed Mode | 4 |
+
+The native read handler implements the table `{0→3, 1→1, 2→2, 3→4}`; the write handler implements the exact inverse `{1→1, 2→2, 3→0, 4→3}`.
 
 Independent same-model runtime evidence on later firmware reports QFAN:
 
@@ -169,7 +180,7 @@ Independent same-model runtime evidence on later firmware reports QFAN:
 - 3 = performance/turbo,
 - 4 = full speed.
 
-For the exact installed BIOS/EC pair this human QFAN mapping is **LIKELY**, not target execution proof.
+For the exact installed firmware image, the numeric and human label mapping is **CONFIRMED static target evidence**. Runtime behavior on the local machine remains a separate execution-proof level.
 
 ## SystemConfig backup mapping
 
@@ -348,3 +359,37 @@ WMAA write `0x0A00/5`:
 - returns status `0x8000`.
 
 The physical/user-facing identity of this route as microphone mute is independently confirmed on the same TM2309 model. The exact outward 0/1 user-state polarity is intentionally left neutral until a target execution trace or authoritative caller implementation closes it.
+
+
+## Native SMM WMI dispatch
+
+### OemWMISmmCallback
+
+**CONFIRMED**
+
+The firmware contains native SMM module `OemWMISmmCallback`, FFS GUID `FAD93433-76B9-4482-4567-3BEACEA9B35D`.
+
+It implements the same packet family using explicit selector→handler tables.
+
+Read table (`FUN1=0xFA00`):
+
+- `0x0800 → 0x1BDC`
+- `0x0900 → 0x1C60`
+- `0x0A00 → 0x1810`
+- `0x0B00 → 0x19C8`
+- `0x0C00 → 0x18AC`
+- `0x0D00/0x0E00/0x0F00 → 0x1D38`
+- `0x1000 → 0x1A7C`
+
+Write table (`FUN1=0xFB00`):
+
+- `0x0800 → 0x1AD0`
+- `0x0A00 → 0x17C8`
+- `0x0B00 → 0x1900`
+- `0x0C00 → 0x1860`
+- `0x0D00/0x0E00/0x0F00 → 0x1CEC`
+- `0x1000 → 0x1A30`
+
+Selector `0x0800` is the native System Performance Mode bridge described above.
+
+Selector `0x0B00` reads/writes `SystemConfig+0x107`, which IFR identifies as **Display Configuration**. The native write handler accepts only values 0 or 1, saves the modified SystemConfig when changed, and invokes the associated OEM apply callback. This selector is therefore **CONFIRMED** as the Display Configuration control route.
