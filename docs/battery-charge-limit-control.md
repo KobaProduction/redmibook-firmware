@@ -20,6 +20,53 @@ Canonical model-specific name:
 
 Do not alias this function to a keyboard-lighting API on TM2309.
 
+## Additional battery/power telemetry subcommands
+
+The same target-specific MIFS function `0x10` exposes two additional **read-only** subcommands around the charge-limit control.
+
+### Subcommand 1: raw `SOH1`
+
+Evidence state: **CONFIRMED** for transport and EC field identity; product-level meaning remains **UNKNOWN**.
+
+```text
+GET:
+  function = 0x10
+  subcommand = 1
+  result = EC field SOH1
+```
+
+The DSDT places `SOH1` at EC window byte offset `0xAB`:
+
+```text
+SOH1 address = 0xFE0B0300 + 0xAB = 0xFE0B03AB
+```
+
+The field name strongly resembles “state of health”, but the target firmware does not provide enough semantic evidence to promote that expansion to a canonical name yet. Keep `SOH1` as the exact raw field identity.
+
+No SET branch for subcommand 1 exists in the target `WMAA` method.
+
+### Subcommand 3: `ADPW` threshold status
+
+Evidence state: **CONFIRMED** for the comparison contract; physical-unit interpretation remains **UNKNOWN**.
+
+```text
+GET:
+  function = 0x10
+  subcommand = 3
+  if ADPW >= 0x8C (140): result = 0
+  if ADPW <  0x8C (140): result = 1
+```
+
+The DSDT places the full-byte field `ADPW` immediately after the packed `0x80` status byte, at EC byte offset `0x81`:
+
+```text
+ADPW address = 0xFE0B0300 + 0x81 = 0xFE0B0381
+```
+
+The firmware name suggests adapter-power telemetry and the threshold is decimal 140, but neither the unit nor the exact public meaning of the returned Boolean is proven by target evidence. Do not publish it as a “<140 W charger” flag until runtime or another authoritative target contract confirms the unit.
+
+No SET branch for subcommand 3 exists.
+
 ## 80 percent charge protection
 
 Evidence state: **CONFIRMED**.
