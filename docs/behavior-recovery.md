@@ -147,3 +147,23 @@ The complete `HQDxeService` PE image is byte-identical between the official 2024
 `0FA91B79DD98D6629BB3ABF4386D90B3173357CE1566163BD3AE3141501E779E`).
 
 Therefore the native Setup → QFAN mapping above did not change between these releases.
+
+
+### HQDxeService hidden Setup → EC selector map
+
+**CONFIRMED unless explicitly marked LIKELY**
+
+The entrypoint applies six bytes from the 0x4B0-byte Setup configuration to EC state through one selector-dispatch action. None of the source offsets below appears as an ordinary `SystemConfig` HII question in the target SetupUtility IFR, so these are internal platform fields rather than directly exposed BIOS-menu questions.
+
+| Native selector | Setup offset | EC target | Recovered semantic contract |
+| --- | ---: | --- | --- |
+| 1 | `+0x33` | `AOUF`, EC byte `0x18` bits 0..1 | **LIKELY** USB-charge / always-on-USB mode. Preserve raw field name `AOUF` until a stronger producer/consumer proves the exact label. |
+| 2 | `+0x34` | `UCBT`, EC byte `0xAC` | USB charging battery threshold. |
+| 3 | `+0x29` | `IKBW`, EC byte `0x18` bit 5 | Internal-keyboard wake enable. |
+| 4 | `+0x42` | `KBMD`, EC byte `0xB2` bit 7 | Keyboard-backlight mode. |
+| 5 | `+0x43` | `QFAN`, EC byte `0x60` | Performance/fan profile selector; mapping documented above. |
+| 6 | `+0x2A` | `WOUB`, EC byte `0x18` bit 6 | Wake-on-USB enable. ACPI deep-standby logic disables XHCI PME when `WOUB == 0`. |
+
+The action preserves unrelated bits when writing packed EC bytes. Selector 1 replaces only the low two `AOUF` bits; selectors 3 and 6 toggle only their individual bits.
+
+This selector map is byte-identical in the 2024-04-07 and 2024-06-04 releases because the complete `HQDxeService` PE is identical.
