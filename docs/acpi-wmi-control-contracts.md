@@ -22,6 +22,8 @@ This document records recovered control behavior. Raw identifiers remain evidenc
 - flags: METHOD
 - AML method: `\\_SB.PC00.WMID.WMAA`
 
+`WMAA` is exposed as the single WMI method for object `AA`. The AML only handles WMI method ID `1`; read/write direction is encoded inside the payload rather than by separate WMI method IDs.
+
 Input buffer layout used by `WMAA`:
 
 | Offset | Width | Semantic name |
@@ -46,6 +48,8 @@ Observed operation groups:
 
 - `FUN1=0xFA00`: read/query.
 - `FUN1=0xFB00`: write/set.
+- successful implemented branches use status `0x8000`.
+- unsupported top-level selectors use status `0xE000`.
 
 ### Data/query block
 
@@ -281,3 +285,66 @@ The extracted ACPI tables show this as a read/event contract. A target-static AC
 The key fan/WMI ACPI methods `WMAA`, `EV20`, `WM01`, DSDT `QFAN`, `FUNR`, and `NTDP` are semantically identical between the 2024-04-07 and 2024-06-04 firmware packages.
 
 The analyzed decompressed firmware volume for 2024-06-04 vs 2025-06-10 has only seven changed bytes, all accounted for by release date/version metadata. All 319 PE modules retain the same layout; only `SmbiosDxe` and `SetupUtility` differ, and those differences are version strings / SMBIOS release fields rather than recovered behavior changes.
+
+
+## Battery / charge-protection WMI group
+
+### Charge protection
+
+**CONFIRMED static target contract**
+
+WMAA read:
+
+- function group: `0x1000`
+- sub-selector: `2`
+- firmware reads EC byte `LONL` at offset `0xA4`
+- returned value is exactly `LONL.bit0`.
+
+WMAA write:
+
+- function group: `0x1000`
+- sub-selector: `2`
+- `FUN4=1` sets only `LONL.bit0`
+- any other `FUN4` value clears only `LONL.bit0`
+- other bits in `LONL` are preserved
+- success status is `0x8000`.
+
+Independent same-model runtime evidence reports that this bit controls the EC battery charge limit: set = 80% protection, clear = 100% normal charging. For the exact installed target, the static WMI/EC bit contract is CONFIRMED; the 80% physical effect is corroborated by same-model runtime evidence and remains pending local execution proof.
+
+### Adapter power threshold
+
+**CONFIRMED static target contract**
+
+WMAA read `0x1000/3` reads EC byte `ADPW` at offset `0x81` and returns:
+
+- 0 when `ADPW >= 140`
+- 1 when `ADPW < 140`.
+
+Independent same-model runtime evidence reports `ADPW=140` with the stock 140 W USB-C supply.
+
+### Unknown status byte
+
+WMAA read `0x1000/1` returns EC byte `SOH1` at offset `0xAB`.
+
+Evidence state: **UNKNOWN semantic meaning**. The raw name alone is insufficient to promote it to a battery-health interpretation.
+
+## Mic-mute WMI group
+
+### Static contract
+
+**CONFIRMED**
+
+WMAA read `0x0A00/5`:
+
+- reads EC selector `FUNR(0x20)`, which returns `MIUT`
+- returns outward boolean `!MIUT`.
+
+WMAA write `0x0A00/5`:
+
+- outward `FUN4=1` writes EC `MIUT=0`
+- any other value writes EC `MIUT=1`
+- waits 150 ms
+- emits WMI event code `0x21`
+- returns status `0x8000`.
+
+The physical/user-facing identity of this route as microphone mute is independently confirmed on the same TM2309 model. The exact outward 0/1 user-state polarity is intentionally left neutral until a target execution trace or authoritative caller implementation closes it.
