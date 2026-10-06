@@ -168,3 +168,16 @@ Both versions expose the same 15 validated firmware-volume headers at the same o
 There are also nested/overlapping firmware-volume headers, including volumes at `0x0029BAF8`, `0x00D6FEF0`, and `0x00E86B60`. These must be treated as nested container evidence, not as fifteen independent top-level regions.
 
 Because A0A and B0B preserve the same FV map, the next analysis pass can compare corresponding volumes and FFS modules directly.
+
+
+## A0A -> B0B changed-volume localization
+
+Evidence state: **CONFIRMED**.
+
+The version delta is highly localized:
+
+- FV at `0x005E2AF0`, length `0x3FE000`: 3,510,383 changed bytes, **83.858%** of that volume.
+- Nested/overlapping FV at `0x0029BAF8`, length `0xAA000`: 5 changed bytes.
+- All other validated FV ranges in the current map compare byte-identical between A0A and B0B.
+
+This means the B0B update is not a broad platform-image rewrite. The primary next behavior-analysis target is the `0x005E2AF0..0x009E0AF0` firmware volume and its contained FFS modules. Other identical volumes can be deprioritized until a cross-component dependency requires them.
