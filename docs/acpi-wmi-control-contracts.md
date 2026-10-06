@@ -1,0 +1,283 @@
+# ACPI / WMI control contracts
+
+Target: Xiaomi Redmi Book Pro 16 2024, board TM2309.
+
+This document records recovered control behavior. Raw identifiers remain evidence; semantic labels are only as strong as the evidence state shown.
+
+## Evidence levels
+
+- **CONFIRMED**: directly supported by target firmware bytes / AML / IFR.
+- **LIKELY**: target static evidence is consistent with independent same-model runtime evidence, but this exact installed firmware/EC combination has not yet been observed executing that behavior.
+- **UNKNOWN**: semantic meaning is not yet closed.
+
+## WMI control surface
+
+### Multiplexed control method
+
+**CONFIRMED**
+
+- WMI method GUID: `B60BFB48-3E5B-49E4-A0E9-8CFFE1B3434B`
+- WDG object ID: `AA`
+- instance count: 1
+- flags: METHOD
+- AML method: `\\_SB.PC00.WMID.WMAA`
+
+Input buffer layout used by `WMAA`:
+
+| Offset | Width | Semantic name |
+| --- | ---: | --- |
+| 0x00 | u16 | function group (`FUN1`) |
+| 0x02 | u16 | selector (`FUN2`) |
+| 0x04 | u16 | sub-selector/value0 (`FUN3`) |
+| 0x06 | u32 | value1 (`FUN4`) |
+
+Return buffer layout:
+
+| Offset | Width | Semantic name |
+| --- | ---: | --- |
+| 0x00 | u16 | status (`SGER`) |
+| 0x02 | u16 | returned function (`FUTR`) |
+| 0x04 | u16 | value0 (`FRD0`) |
+| 0x06 | u32 | value1 (`FRD1`) |
+| 0x0A | u32 | value2 (`FRD2`) |
+| 0x0E | u32 | value3 (`FRD3`) |
+
+Observed operation groups:
+
+- `FUN1=0xFA00`: read/query.
+- `FUN1=0xFB00`: write/set.
+
+### Data/query block
+
+**CONFIRMED**
+
+- GUID: `05901221-D566-11D1-B2F0-00A0C9062910`
+- WDG object ID: `AB`
+- instance count: 1
+
+The firmware exposes a static `WQAB` buffer.
+
+## WMI event surface
+
+**CONFIRMED**
+
+The firmware exposes four event GUIDs:
+
+| Notify | GUID |
+| ---: | --- |
+| 0x20 | `46C93E13-EE9B-4262-8488-563BCA757FEF` |
+| 0x21 | `FA78E245-2C0F-4CA1-91CF-15F34E474850` |
+| 0x22 | `1DCEAF0A-4D63-44BB-BD0C-0D6281BFDDC5` |
+| 0x23 | `3F9E3C26-B077-4F86-91F5-37FF64D8C7ED` |
+
+`_WED(0x20..0x23)` returns the shared 32-byte event buffer `EVBU`. For the primary `EV20` route:
+
+- byte 0 = event type,
+- byte 1 = event code,
+- byte 2 = event value/state.
+
+Confirmed target-static event codes include:
+
+- `0x05`: keyboard-backlight state event; value is derived from EC `KBLL`.
+- `0x16`: performance/fan-mode event; value is read from EC `QFAN`.
+- `0x21`: event generated from EC `MIUT`, with inverted outward boolean.
+
+Independent same-model runtime evidence identifies `0x21` as microphone mute and `0x16` as OEM performance mode. Those human labels remain **LIKELY** for the exact 2024-06-04 BIOS + EC 1.10 target until execution evidence is captured on that target.
+
+## EC field map
+
+The DSDT field `ERAM` exposes the following directly relevant fields.
+
+| EC location | Raw field | Current semantic state |
+| --- | --- | --- |
+| byte 0x17, bit 4 | `MIUT` | **LIKELY** microphone-mute state/control |
+| byte 0x60 | `QFAN` | **CONFIRMED** performance/fan-mode control byte |
+| byte 0x81 | `ADPW` | **UNKNOWN** adapter/power-derived status byte |
+| byte 0xA4 | `LONL` | **LIKELY** charge-protection bitfield; WMI uses bit 0 |
+| byte 0xAB | `SOH1` | **UNKNOWN** status byte; name suggests state-of-health but not promoted |
+| byte 0xB2, bits 0..6 | `KBLL` | **CONFIRMED** keyboard-backlight state used for WMI events |
+| byte 0xB2, bit 7 | `KBMD` | **UNKNOWN** adjacent keyboard-backlight mode bit |
+
+### EC helpers
+
+**CONFIRMED**
+
+- `ECRD(field)`: reads an EC field.
+- `ECWT(value, field)`: writes an EC field.
+- `FUNR(selector)`: returns selected EC state.
+- `FUNR(0x16)`: returns `QFAN`.
+- `FUNR(0x20)`: returns `MIUT`.
+- `NTDP(value)`: publishes a device-specific thermal/platform notification; for QFAN values it updates `ODV1` and notifies `IETM`.
+
+## Performance / fan mode contract
+
+### Direct WMI control
+
+**CONFIRMED**
+
+Read:
+
+- `WMAA`: `FUN1=0xFA00`, `FUN2=0x0800`.
+- firmware reads `FUNR(0x16)` / `QFAN`.
+- accepted returned values are 1, 2, 3, 4.
+
+Write:
+
+- `WMAA`: `FUN1=0xFB00`, `FUN2=0x0800`.
+- values other than special 5/7 are written directly to `QFAN`.
+- firmware emits event `QV20(1, 0x16)`.
+- special values 5 and 7 are routed to `SMMD`, not normal QFAN mode storage.
+
+The OEM `HQNVS000` SSDT provides a second route:
+
+- method `WM01`, command 0x09 writes the supplied integer directly to `QFAN`,
+- waits 5 ms,
+- reads the new QFAN value,
+- calls `NTDP(value)`,
+- returns the success string `Set performance mode Success!`.
+
+### Setup-side mode enum
+
+**CONFIRMED**
+
+UEFI HII VarStore:
+
+- name: `SystemConfig`
+- GUID: `A04A27F4-DF00-4D42-B552-39511302113D`
+- VarStore ID: `0x1234`
+- size: `0x4B0`
+
+Field `SystemConfig+0x103`: **System Performance Mode**
+
+| Setup value | Label |
+| ---: | --- |
+| 0 | Turbo Mode |
+| 1 | Balance Mode (default) |
+| 2 | Silence Mode |
+| 3 | Full Speed Mode |
+
+The exact static transformation from this `0..3` Setup enum to EC `QFAN=1..4` has not yet been found. Do not treat the two numeric domains as identical.
+
+Independent same-model runtime evidence on later firmware reports QFAN:
+
+- 1 = balanced,
+- 2 = quiet/silence,
+- 3 = performance/turbo,
+- 4 = full speed.
+
+For the exact installed BIOS/EC pair this human QFAN mapping is **LIKELY**, not target execution proof.
+
+## SystemConfig backup mapping
+
+### AutoBackupSCUSetting
+
+**CONFIRMED**
+
+- module: `AutoBackupSCUSetting`
+- FFS GUID: `2EACAEEE-6254-4FAC-9B32-9B12CC56514F`
+
+Backup variable:
+
+- name: `ABSS`
+- GUID: `89CB0E8D-393C-4830-BFFF-65D9147E8C3B`
+
+The module copies fields one-for-one in both directions. Relevant mappings:
+
+| SystemConfig | ABSS | Semantic name |
+| ---: | ---: | --- |
+| 0x101 | 0x15 | CPU Convertible Turbo Mode |
+| 0x102 | 0x16 | KB Backlight Mode |
+| 0x103 | 0x1E | System Performance Mode |
+| 0x105 | 0x22 | Type-C non-PD input threshold |
+| 0x104 | 0x23 | UNKNOWN |
+| 0x106 | 0x24 | Turbo Mode Hotkey Event |
+| 0x107 | 0x25 | Display Configuration |
+| 0x108 | 0x26 | UNKNOWN 0..3 value |
+| 0x109 | 0x0F | UNKNOWN numeric byte |
+| 0xF3 | 0x13 | USB Charge |
+| 0xF4 | 0x14 | USB Charge Battery Threshold |
+| 0xF5 | 0x31 | fan-related Setup field, semantics not yet closed |
+| 0xF6 | 0x32 | fan-related Setup field, semantics not yet closed |
+| 0xF7 | 0x34 | fan-related Setup field, semantics not yet closed |
+| 0xF8 | 0x35 | fan-related Setup field, semantics not yet closed |
+| 0xF9 | 0x33 | fan-related Setup field, semantics not yet closed |
+
+No value conversion occurs in this backup/restore module.
+
+## Other confirmed Setup controls
+
+### USB charging
+
+**CONFIRMED HII semantics; hardware apply route still UNKNOWN**
+
+`SystemConfig+0xF3`: USB Charge
+
+- 0 = Off (default)
+- 1 = Always on
+- 2 = One time only
+
+`SystemConfig+0xF4`: USB Charge Battery Threshold
+
+- 10 = 10%
+- 20 = 20%
+- 30 = 30% (default)
+
+### Type-C non-PD input threshold
+
+**CONFIRMED HII semantics**
+
+`SystemConfig+0x105`, visible Setup item `Type-C Power Supply(non PD protocol) Input Threshold`.
+
+The default value is 2 = 5V/0.5A. Other option labels remain to be materialized when needed.
+
+### Turbo hotkey
+
+**CONFIRMED HII semantics**
+
+`SystemConfig+0x106`: Turbo Mode Hotkey Event
+
+- 0 = Disable
+- 1 = Enable (default)
+
+### CPU Convertible Turbo Mode
+
+**CONFIRMED HII semantics**
+
+`SystemConfig+0x101`:
+
+- 0 = Standard
+- 1 = Boost (default)
+
+### Keyboard backlight Setup mode
+
+**CONFIRMED HII semantics**
+
+`SystemConfig+0x102`:
+
+- 0 = Standard
+- 1 = Power Saving (default)
+
+A direct mapping from this Setup field to EC `KBLL` has not been established.
+
+## Keyboard-backlight event contract
+
+**CONFIRMED**
+
+EC `KBLL` resides at byte 0xB2, bits 0..6. WMI event code `0x05` maps:
+
+| KBLL | WMI event value |
+| ---: | ---: |
+| 1 | 0 |
+| 2 | 5 |
+| 4 | 10 |
+| 8 | 0x80 |
+
+The extracted ACPI tables show this as a read/event contract. A target-static ACPI setter for `KBLL` has not been found.
+
+## Version stability
+
+**CONFIRMED static evidence**
+
+The key fan/WMI ACPI methods `WMAA`, `EV20`, `WM01`, DSDT `QFAN`, `FUNR`, and `NTDP` are semantically identical between the 2024-04-07 and 2024-06-04 firmware packages.
+
+The analyzed decompressed firmware volume for 2024-06-04 vs 2025-06-10 has only seven changed bytes, all accounted for by release date/version metadata. All 319 PE modules retain the same layout; only `SmbiosDxe` and `SetupUtility` differ, and those differences are version strings / SMBIOS release fields rather than recovered behavior changes.
