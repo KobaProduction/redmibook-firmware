@@ -103,15 +103,15 @@ When the basic layout is selected:
 
 This closes the semantic mapping of the first two telemetry values without guessing the raw EC method names.
 
-## Separate RPM data method
+## Separate 26-byte PTID mailbox route
 
-**PARTIALLY CONFIRMED**
+**CONFIRMED structure; UNKNOWN payload semantics**
 
-A separate method named RPMD returns the result of raw EC method ERPC when the EC provider is present. Its fallback is a 26-byte buffer, and the paired write method accepts only a 26-byte buffer.
+A separate method whose raw identifier is RPMD returns the result of EC method ERPC when the EC provider is present. Its fallback is a 26-byte buffer, and the paired write method accepts only a 26-byte buffer.
 
-The name and surrounding PTID interface show that this route is RPM-related, but the layout of the 26-byte ERPC payload has not yet been recovered.
+Despite the raw identifier, this route must not be named as fan RPM. Historical Intel PTID implementations use the same RPMD/WPMD method family for a generic 26-byte PECI/mailbox exchange. The TM2309 payload layout and ERPC implementation remain unresolved.
 
-Do not treat ERPC as equivalent to CpuFan1SpeedRpm until its payload structure is proven.
+This route is therefore kept neutral and is not part of the CpuFan1SpeedRpm capability contract.
 
 ## EC performance/fan-related bit fields
 
@@ -157,6 +157,6 @@ Prefer the independently recovered PTID/ACPI telemetry contract above until the 
 
 1. obtain execution proof for CPU fan RPM through the operating-system-visible PTID/ACPI route;
 2. establish the numeric range/scaling of CPU fan duty cycle;
-3. recover the 26-byte ERPC RPM payload;
+3. recover the 26-byte ERPC/PTID mailbox payload;
 4. map TSR0..TSRB and the raw thermal methods to physical sensors;
 5. determine whether a second physical fan has a distinct operating-system-visible telemetry route.
