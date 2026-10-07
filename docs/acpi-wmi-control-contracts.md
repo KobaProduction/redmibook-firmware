@@ -520,3 +520,13 @@ Evidence: retained `corpus/analysis-modules/TM2309_{old,new}_OEM_SetupFanUi_cand
 A read-only disassembly scan of **38 unique extracted PE images** (deduplicated by SHA-256 across the current analysis/control/power/SystemConfig module corpus) looked for direct x86-64 memory references at displacement `+0xF5/+0xF6/+0xF7/+0xF8`. The matching grouped fan-policy accesses in this corpus were located in the H2O Setup UI and `AutoBackupSCUSetting`. The latter copies the four bytes from `Setup+0xF5..+0xF8` to backup entries `+0x31,+0x32,+0x34,+0x35` (`0xC45..0xC66`), with the inverse copies at `0xF5C..0xF7A`. This is a **configuration backup/restore** contract, not a demonstrated EC fan writer.
 
 The audit does not cover every firmware volume or indirect/computed address, so it cannot prove the absence of a separate fan-application route. Continue through a new concrete consumer/provider lead or controlled runtime correlation, not repetitive unsupported WMI calls.
+
+### Bounded OEM protocol provider census (2026-10-07)
+
+**CONFIRMED bounded corpus inventory; installed runtime provider selection still UNKNOWN.**
+
+A deduplicated (by binary SHA-256) read-only scan of the retained EFI module corpus located the raw `754F7701-3C51-4F73-8FEF-314FDFA6DC5B` GUID in **11 unique extracted PE images**. The ordinary observed consumers use `EFI_BOOT_SERVICES.LocateProtocol` (boot-services slot `+0x140`); `guid_owner_139451c.efi` also has a protocol notification-registration path (`RegisterProtocolNotify`) that must not be misread as installation. The confirmed provider-install action in this bounded set belongs to `OemODMDxeDriver`, with the interface base and unsupported fan-variant slot described above.
+
+This significantly narrows the **retained candidate corpus**: no second installer is established by the inspected direct GUID references. It is **not** proof of exclusivity in the entire factory volume, because GUID indirection or an unextracted provider remains possible. With the confirmed ODM slot returning `EFI_UNSUPPORTED`, the BIOS UI's fallback branch has a concrete explanation for that implementation. No independent route has yet linked `SystemConfig+0xF5..+0xF8` to a live EC fan-duty/mode write.
+
+**Progress denominator unchanged:** the fine-fan route remains **3/5 (60%)** against the preceding checkpoint. Runtime apply and safe OS access are still open. Do not increase the score for negative candidate screening alone.

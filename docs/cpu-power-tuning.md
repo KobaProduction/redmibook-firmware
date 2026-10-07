@@ -185,3 +185,15 @@ An independent native `CpuSetup` read is present in `AdvancedAcpiDxe.efi` (GUID 
 The next evidence boundary is **data flow from `CpuSetup+0x2F/+0x35` and processor overrides through a native policy/CPU power-management consumer to the actual power-control programming**. This trace is not closed by the variable reads alone. `SetupCpuFeatures+0x1A` remains semantically UNKNOWN.
 
 **Investigation checkpoint (selected PL1/PL2 control route only): 25% → 50%, 1/4 → 2/4 gates.** Covered: target HII/VarStore fields and at least one verified native GetVariable consumer. Open: concrete hardware policy/programming link and safe live/OS apply. This is neither board execution proof nor an estimate of overall CPU tuning support.
+
+## CpuSetup consumer discriminants and CPU-PM MSRs (2026-10-07)
+
+**CONFIRMED — bounded static machine-instruction evidence; PL1/PL2 hardware programming still UNKNOWN.**
+
+Following the `PolicyInitAdvancedDxe.efi` `CpuSetup` `GetVariable` call at `0xD4E` into its immediate consumer reveals the accessed field: the destination buffer begins at `rbp-0x80`, and the conditional read `movzx ecx, byte ptr [rbp+0x210]` at `0xD5F` corresponds to `CpuSetup+0x290`, **not** either of the PL1/PL2 HII fields. After status evaluation, this byte is selected against a fallback into local global state at `0x50E9`. Its product meaning is still UNKNOWN. The mere fact of a native full-variable read must not be counted as proof of native PL1/PL2 consumption.
+
+The installed `DxeCpuPowerManagement` extracted PE image contains `RDMSR` instructions, including direct read selections `MSR 0x194`, `0x1A2` and `0xCE`; no direct `WRMSR` opcode was found in its disassembled executable section. This module therefore supplies **no established direct MSR write evidence** for Package Power Limit programming in the inspected image. Indirect calls, another native module, a firmware policy handoff or SMM code may still implement writes; absence of `WRMSR` here is not a platform-wide negative proof.
+
+Static comparison of the native `CpuSetup` consumers also shows `PlatformInitDxe`, `PlatformInitAdvancedDxe` and `PlatformInitAdvancedSmm` references, but their specific PL1/PL2 field dataflow is unverified. Continue from a concrete policy-structure field, parameter passing or CPU policy-programming entrypoint rather than assuming semantics from file/module names.
+
+**Progress denominator unchanged:** the selected PL1/PL2 route remains **2/4 (50%)**. The remaining two gates are actual parameter-to-policy/hardware programming evidence and a safe live/OS control path. These findings refine candidate selection; they do not close either gate.
