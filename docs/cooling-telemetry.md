@@ -160,3 +160,50 @@ Prefer the independently recovered PTID/ACPI telemetry contract above until the 
 3. recover the 26-byte ERPC/PTID mailbox payload;
 4. map TSR0..TSRB and the raw thermal methods to physical sensors;
 5. determine whether a second physical fan has a distinct operating-system-visible telemetry route.
+
+
+## Factory MIFS telemetry boundary
+
+**CONFIRMED — target static evidence**
+
+The generic Bitland MIFS specification defines additional functions for fan RPM, manual fan control and CPU temperature. Those generic functions must not be assumed on TM2309.
+
+The operating-system-visible TM2309 method implements only these top-level control groups:
+
+- performance/cooling profile;
+- the model-specific microphone-mute group;
+- the model-specific battery/power group.
+
+The generic MIFS groups used by other laptops for:
+
+- fan RPM;
+- manual/max-fan switching;
+- manual fan duty;
+- CPU thermometer;
+
+are absent from the target method and fall through to the unsupported status.
+
+The primary event route also does not provide usable fan RPM telemetry: the generic CPU-fan-speed event number is present only as a zero-valued event shell, and the generic GPU-fan-speed event is not implemented in the target event switch.
+
+Therefore:
+
+- MIFS performance-profile control is a valid TM2309 Manager backend;
+- MIFS fan RPM is **CONFIRMED unavailable** on the factory TM2309 command surface;
+- MIFS manual fan control is **CONFIRMED unavailable** on the factory TM2309 command surface;
+- CPU fan RPM must use the independently recovered PTID route or a future project-firmware interface.
+
+This negative capability result is important: unsupported generic MIFS functions must not appear as zero-valued sensors or writable controls in Manager.
+
+## Windows access boundary for PTID
+
+The PTID table exposes ACPI device identity INT340E and the CpuFan1SpeedRpm descriptor, but the user-mode access contract is not yet closed.
+
+Historical Windows systems use an Intel Power and Temperature Instrumentation Monitor driver for INT340E. It is not yet proven that the target Windows installation exposes the required PTID methods through a user-mode API suitable for Manager.
+
+Current Manager implementation choices remain:
+
+1. use an existing Intel PTID provider if one is present and exposes the data safely;
+2. otherwise use a minimal read-only privileged helper to evaluate the specific ACPI telemetry methods;
+3. later replace that transport with OpenFirmwareBackend telemetry without changing the semantic capability.
+
+Do not treat the existence of the ACPI descriptor as proof that ordinary user-mode Windows code can already read it.
