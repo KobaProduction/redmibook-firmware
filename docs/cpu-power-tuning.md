@@ -197,3 +197,19 @@ The installed `DxeCpuPowerManagement` extracted PE image contains `RDMSR` instru
 Static comparison of the native `CpuSetup` consumers also shows `PlatformInitDxe`, `PlatformInitAdvancedDxe` and `PlatformInitAdvancedSmm` references, but their specific PL1/PL2 field dataflow is unverified. Continue from a concrete policy-structure field, parameter passing or CPU policy-programming entrypoint rather than assuming semantics from file/module names.
 
 **Progress denominator unchanged:** the selected PL1/PL2 route remains **2/4 (50%)**. The remaining two gates are actual parameter-to-policy/hardware programming evidence and a safe live/OS control path. These findings refine candidate selection; they do not close either gate.
+
+## SetupCpuFeatures GUID and MTRR false-positive audit
+
+**CONFIRMED bounded static behavior; `SetupCpuFeatures+0x1A` producer and native PL1/PL2 application still UNKNOWN.**
+
+The canonical `SetupCpuFeatures` vendor GUID `EC87D643-EBA4-4BB5-A1E5-3F3E36B20DA9` has little-endian bytes `43 D6 87 EC A4 EB B5 4B A1 E5 3F 3E 36 B2 0D A9`. A previous local search used the incorrect sequence `...EC E4 EB...` and falsely returned no firmware GUID matches. A corrected read-only scan identified **16 file copies containing the proper GUID** across extracted PE images; these are **GUID byte occurrences, not proof of 16 consumers of the named UEFI variable**.
+
+The native `PlatformInitAdvancedDxe` instance of this GUID at `0x8FE0` is used with UTF-16 variable name `Setup` at `0x9460` and a `0xC2C` byte read at `0x14B1`. It also has a `SetVariable` call at `0x151B` using the same variable-name/GUID pair. **These are `Setup` variable accesses, not the 0x2A-byte `SetupCpuFeatures` varstore**. They must not be merged solely because their vendor GUID bytes match.
+
+A true read of the named `SetupCpuFeatures` variable is present in `MeSmbiosUpdateConfig.efi` at `0x9B5..0x9BC`: UTF-16 name at `0xFE0`, matching GUID at `0xE70`, requested size `0x2A`. In the successful-read branch `0x9C4..0x9E9` the module tests **byte `+0x05` and byte `+0x07`**, selectively rewriting bits 5 and 2 of one 32-bit SMBIOS-associated flag word. This is confirmed as a **feature-to-SMBIOS flag consumer**; it does not read or produce **`SetupCpuFeatures+0x1A`**, whose visibility-gate meaning remains UNKNOWN.
+
+The native `PlatformInitAdvancedDxe.efi` also contains several real `WRMSR` instructions, but these must not be misreported as PL1/PL2 writes. The observed actions read/update `MSR 0x2FF` (MTRR default type), iterate indexed `0x250/0x258/0x259/0x268..0x26F` entries from table `0x9550`, and use `MSR 0xFE` to bound variable MTRRs `0x200/0x201` and following pairs. The corresponding native module is therefore carrying out **MTRR save/reprogram/restore behavior**, not a proven write to package power-limit `MSR 0x610` or to a confirmed processor power policy. This closes a misleading `WRMSR` candidate, not the PL1/PL2 route.
+
+**Report checkpoint:** PL1/PL2 static-to-OS route remains **2/4 = 50%**, unchanged from the preceding checkpoint. The remaining steps are a verified native consumption/programming edge for the actual `CpuSetup` limit fields and a safe runtime/OS access path. For the `SetupCpuFeatures+0x1A` subproblem, the only presently closed fact is that it exists as an HII visibility gate; a named consumer at **other offsets** does not make its producer known.
+
+Evidence: retained installed modules `corpus/analysis-modules/TM2309_2024-06-04_PlatformInitAdvancedDxe.efi`, `corpus/analysis-modules/TM2309_2024-06-04_MeSmbiosUpdateConfig.efi` and existing HII form inventory. Only static PE disassembly; no target execution or NVRAM modification.
