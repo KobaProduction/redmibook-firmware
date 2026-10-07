@@ -21,15 +21,12 @@ They occupy the byte at EC shared-memory offset `0xB2`.
 
 Only the four observed `KBLL` values below currently have recovered semantics.
 
-`KBMD` now has a recovered boot-time control contract, but its UI polarity is not yet closed:
+`KBMD` has a **CONFIRMED** boot-time policy contract with a specific polarity:
 
-- **CONFIRMED:** `KBMD` is the hidden boot-applied keyboard-backlight mode bit.
-- **CONFIRMED:** `HQDxeService` reads hidden Setup byte `+0x42` and applies it to `KBMD`.
-- **CONFIRMED:** Setup value `0` sets `KBMD=1`; any non-zero Setup value clears `KBMD=0`.
-- **CONFIRMED:** the target HII resources expose the two user-facing mode labels `Always on` and `Power Saving`. Their help text describes always-on behavior in S0 versus turning the keyboard backlight off after approximately 15 seconds of keyboard idle time.
-- **UNKNOWN:** which raw Setup/`KBMD` polarity corresponds to each of those two labels. No direct HII-question/owner-draw binding to Setup offset `+0x42` has yet been proven.
-
-Do not rename `KBMD=0/1` to `POWER_SAVING/ALWAYS_ON` until that final binding is established.
+- The target HII policy field is `SystemConfig+0x102`, not the previously reported local-stack offset `+0x42` (**WITHDRAWN**).
+- Setup value `0 = Standard` sets EC `KBMD=1`; Setup value `1 = Power Saving` sets EC `KBMD=0` through `HQDxeService` selector 4.
+- The EC bit resides at shared-memory byte `0xB2`, bit 7, independent of `KBLL` at bits 0..6.
+- The mapping is **CONFIRMED static target evidence**; the actual timeout/physical behavior for each setting still needs execution proof on the laptop. The older interpretation of the two labels as an unbound `Always on / Power Saving` question is **WITHDRAWN** for this field.
 
 Canonical state enum:
 
