@@ -129,3 +129,17 @@ A future manager should prefer the MIFS WMI control route over raw physical writ
 - same-model external execution evidence: **CONFIRMED** for the 80% charge-protection meaning;
 - execution proof on this specific laptop: not yet collected;
 - manager integration proof: not yet collected.
+
+
+## Same-model runtime validation details
+
+Independent testing on the same TM2309 board with the later 1.11 firmware directly exercised the battery-control route.
+
+The tester observed that using function 0x10 / subcommand 2 with a clearing value changed LONL from a protected state to an unprotected state and the EC charge limit changed from 80% to 100%; charging resumed immediately.
+
+This independently validates the user-facing meaning of the recovered LONL bit on TM2309.
+
+A significant compatibility hazard was also demonstrated: a generic third-party MIFS driver treated the same numeric function as a keyboard-mode command and accidentally disabled battery charge protection. Manager must therefore use the TM2309-specific semantic contract and capability table rather than generic Bitland/Xiaomi selector assumptions.
+
+Published evidence:
+- https://lkml.rescloud.iu.edu/2609.3/14028.html

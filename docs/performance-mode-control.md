@@ -159,3 +159,22 @@ Current level:
 - execution proof: available from external runtime testing on the same TM2309 model and byte-identical control route;
 - execution proof on this specific laptop: **not yet collected**;
 - board/integration proof for a future manager implementation: **not yet collected**.
+
+
+## Same-model runtime validation details
+
+Independent Linux testing published for the same board (TM2309) with the later 1.11 firmware confirms the recovered control route in execution.
+
+Observed on that machine:
+
+- Fn+K cycles QFAN 1 -> 3 -> 2;
+- software writes of 2, 0 and 3 changed the EC mode accordingly;
+- Turbo / mode 3 works on battery as well as AC;
+- mode 4 is accepted even though Fn+K does not expose it;
+- mode 4 selected the Geek thermal policy and, on AC, package PL1 ramped toward the 90 W Geek target.
+
+The tested later firmware's analyzed main UEFI content is behavior-equivalent to the installed 2024-06-04 release for this control route. The EC firmware revision is nevertheless different, so this is same-model execution evidence rather than execution proof on the local machine.
+
+Published evidence:
+- https://lkml.rescloud.iu.edu/2609.3/14028.html
+- https://lkml.iu.edu/2609.3/14043.html

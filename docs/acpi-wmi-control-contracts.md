@@ -415,3 +415,33 @@ Multiple Insyde/OEM SMM modules locate or subscribe to this service. The inspect
 Do not assign user-facing semantics to groups 0x09, 0x0C or 0x0D..0x0F until their actual producer is recovered or runtime behavior closes the contract.
 
 These groups are not current RedmiBook Manager implementation candidates.
+
+
+## Operating-system-visible command surface
+
+**CONFIRMED static route; same-model runtime corroboration**
+
+The existence of native SMM handlers does not imply that every handler is reachable through the operating-system-visible WMAA method.
+
+Independent execution testing on TM2309 firmware 1.11 reports the OS-visible WMAA command surface as:
+
+- 0x08 — performance profile: implemented;
+- 0x0A / subcommand 5 — implemented;
+- 0x10 / GET subcommands 1..3 — implemented;
+- 0x10 / SET subcommand 2 — implemented;
+- 0x09 — unsupported through WMAA;
+- 0x0D — unsupported through WMAA;
+- 0x12 — unsupported through WMAA;
+- 0x13 — unsupported through WMAA;
+- 0x14 — unsupported through WMAA;
+- 0x16 — unsupported through WMAA.
+
+Unsupported top-level operations return status 0xE000.
+
+This distinction is mandatory for Manager capability discovery. Internal native handlers and dormant generic-MIFS functionality must not be published as user capabilities unless the actual OS-visible route is proven on the target.
+
+The same runtime report also documents a firmware response quirk: successful SET branches apply the operation and set the status code but may leave the returned function identifier at zero. A backend must validate SET responses according to the TM2309 contract rather than requiring GET-style function echo.
+
+Published evidence:
+- https://lkml.rescloud.iu.edu/2609.3/14028.html
+- https://lkml.iu.edu/2609.3/14043.html
