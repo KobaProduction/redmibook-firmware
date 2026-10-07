@@ -303,3 +303,24 @@ This closes two **specific non-PL1/PL2 `CpuSetup` consumption edges**. No eviden
 **Scoped progress unchanged:** `ThermalSmm` 3/4 = **75%** (static policy and event routing, no target execution), `CpuSetup -> PL1/PL2 -> safe OS control` 2/4 = **50%** (no target field-to-hardware edge). The newly identified fields are useful for platform decomposition but close neither outstanding acceptance gate.
 
 Evidence: retained `corpus/power-modules/AdvancedAcpiDxe.efi` native code at `0x2233..0x2270`, `0x644..0x70A`, `0x283C..0x286E` and `0x2A7F..0x2AAB`. Linux RAPL family support: https://github.com/torvalds/linux/blob/master/drivers/powercap/intel_rapl_msr.c (the `rapl_ids` table and `rapl_defaults_core_pl4`).
+
+## Native SetupUtility RAPL power readback (2026-10-08)
+
+**CONFIRMED target static native readback in the installed A0A SetupUtility; neither a package-power write route nor ordinary OS-visible telemetry is proven.**
+
+A fresh bounded inspection of **317 SHA-256-unique PE images** directly extractable from the complete decompressed 2024-06-04 inner firmware volume (356 FFS envelopes) found raw `0F 30` candidate byte sequences within executable `.text` in **21 PE images**. The 21-image count is **opcode-pattern candidate screening**, not proof that all 21 contain reachable `WRMSR` action nodes or package PL1/PL2 writes. Individual instructions must be classified before assigning semantics. This extends the earlier 41-module extracted sample and prevents relying on that sample as exhaustive.
+
+The concrete useful consumer in `SetupUtility` is an **MSR read/formatting route**:
+
+- At RVA `0x14A20..0x14A3C`, the code reads **`MSR_RAPL_POWER_UNIT = 0x606`** through local helper `0x2802C` (native `RDMSR` at `0x2802C`, combines `EDX:EAX`). It extracts the low four power-unit bits and constructs the divisor using `0x28020` (left-shift helper). Display formatting uses division and factor `1000` to express the fractional portion.
+- At `0x14C2B` it reads **`MSR_PKG_POWER_LIMIT = 0x610`** via the same `RDMSR` helper; the code masks the low 15 bits (`& 0x7FFF`) at `0x14C45`, then formats those power bits using the previously recovered power unit, passing values into the HII display/string update route around `0x14C10..0x14CBC`.
+- The high 32-bit power-limit half is read from the same value (`>>32 & 0x7FFF`) at `0x14CC1..0x14CD3`, also undergoing formatting before HII presentation. A second `MSR 0x610` read at `0x15039` follows the same low-field formatting style; both high/low fields are also included in a later HII update around `0x150C9..0x151EF`.
+- At `0x151F4` it also reads raw **`MSR 0x64C`** and tests its high-order state bit, but the intended product meaning and display label for that register have not been fully classified here.
+
+The readout route is adjacent to reads of the named `SetupCpuFeatures` (size `0x2A`) and `CpuSetup` (size `0x5E0`) variables at `0x147D5` and `0x14828`. Proximity **does not** prove `CpuSetup+0x2F/+0x35` drives the `0x610` writer, and the inspected `0x610` callsites invoke `RDMSR` rather than `WRMSR`. The three direct `WRMSR` instructions elsewhere in the same SetupUtility belong to other inspected flows (`0x607/0x608` and `0x8B`), not this package readback operation.
+
+**Binary-version observation:** the A0A and B0B SetupUtility PE files have different whole-file SHA-256 digests, but direct instruction checks confirm the same `0x606` read at `0x14A20`, two `0x610` reads at `0x14C2B` and `0x15039`, `0x64C` read at `0x151F4`, and `RDMSR` helper at `0x2802C` in both images. Thus the selected **static BIOS-side package-power display route** is stable at these anchors, without claiming all code or data is byte-identical.
+
+**User-facing capability boundary:** this can support a *future* semantic `PackagePowerLimitCurrentReadback` contract at the firmware UI/static level, but does **not** by itself expose a safe user-space backend. It complements the independent `ThermalSmm` writer/automatic EC-event route. `CpuSetup → PL1/PL2 → OS control` remains **2/4 = 50%**, and the `ThermalSmm` route remains **3/4 = 75%**; neither outstanding gate is closed by BIOS UI telemetry. In particular the fixed plant-policy rows, active unit exponent and package lock state are not determined by this analysis alone.
+
+Evidence: `corpus/analysis-modules/TM2309_0A0A_MS_SetupUtility_FE3542FE-C1D3-4EF8-657C-8048606FF670_PE32.efi` and B0B counterpart (selected instruction offsets above), plus the already characterized installed `ThermalSmm` action. All evidence is static and read-only.
