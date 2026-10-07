@@ -155,7 +155,7 @@ Machine instruction route `0x1BE0..0x1C4F`:
 - reads `ERAM+0x80` (packed `ACIN/BTIN/BTST/FCST/PWRV` status), `ERAM+0x81` (`ADPW`) and `ERAM+0x92` (`RSOC`); these raw identities come independently from the installed ACPI DSDT field layout;
 - obtains one OEM classifier through local helper `0x2D04(0x140C04, ...)`. When that classifier equals `3`, sets output byte `+0` according to unsigned `ADPW >= 0x85`; otherwise tests `ADPW >= 0x5F`. **Do not assign watts or a battery policy label to this raw threshold flag without further evidence**;
 - writes `RSOC` to output byte `+5`;
-- **only conditionally** writes output byte `+2` to `1` if `BTIN` (`ERAM+0x80 bit1`) is set, the preceding threshold flag is zero, and `RSOC <= 10`; otherwise that byte is not written in the shown routine. This is an OEM low-charge advisory condition candidate, not a verified standalone battery alarm API;
+- if BTIN (status bit 1) is set AND the prior threshold flag is zero, **writes output byte +2 to `(RSOC <= 10) ? 1 : 0`** (`setbe al; mov [rbx+2],al` at 0x1C3F..0x1C45). If either prerequisite fails, byte +2 is not written by the shown routine. The former 'writes only 1 under threshold' interpretation is WITHDRAWN: the routine also writes zero when RSOC > 10. This is an OEM advisory candidate, not a public alarm API.
 - returns zero/firmware success; it does not write an EC register or set the charge limit.
 
 The routine adds a **native BIOS-side battery/adapter status producer** to the inventory. It is separate from the confirmed **OS-visible** MIFS battery charge-protection route. No Windows caller, supported user-mode path or real-machine validation is established for this OEM method; do not expose the derived thresholds as public controls or physical charger-power claims.
@@ -163,3 +163,18 @@ The routine adds a **native BIOS-side battery/adapter status producer** to the i
 Evidence: retained `corpus/oem-protocol-candidates/OemODMDxeDriver.efi` instructions `0xA61..0xA68`, `0x1BE0..0x1C4F`; installed `corpus/acpi-2024-06-04/TM2309_2024-06-04_DSDT_INTEL_SKL.dsl`, `ERAM` field.
 
 **Selected OEM battery diagnostic route (new scope): approximately 75% (3/4 evidence gates).** Closed: interface-method linkage, EC field meanings, and exact output-flag algorithm. Open: reliable OS access/target execution. This percentage is *not* global battery-feature progress and does not turn firmware-static analysis into hardware proof.
+
+
+## Standard ACPI battery telemetry and OEM serial-number producer (2026-10-08)
+
+**CONFIRMED static firmware contract; current pack values, hardware execution and OS client validation UNKNOWN.**
+
+DSDT EC region `SMA2` at `0xFE0B0A00` defines `BAMN` manufacturer at +0xC0 (16 bytes), `BADN` battery model at +0xD0 (16 bytes) and **`BASN` serial number at +0xE0 (32 bytes)**. Native `OemODMDxeDriver` method `0x1C50..0x1CC3` reads exactly 32 bytes at `0xFE0B0AE0`; returns EFI_UNSUPPORTED for an empty first byte; otherwise widens bytes to UTF-16 in the caller output. Installed object slot +0x60 is interface-relative +0x38 (interface base object+0x28). This resolves a **battery identity producer**, not a fan, voltage or battery charge-limit writer.
+
+Standard `BAT0` (`PNP0C0A`) `_BIX` independently returns `BADN` at package index 0x10, `BASN` at 0x11 and `BAMN` at 0x13. Under `ECAV` and successful mutex acquisition, battery design capacity at index 2 is `(BTDC * BTDV)/1000`, full charge capacity at index 3 is `(BTFC * BTDV)/1000`, and design voltage index 5 is `BTDV`. Derive future battery-health percentage only from validated design/full-charge capacities and do not label raw `SOH1` as a percentage. In this AML path cycle-count index 8 remains the unknown sentinel.
+
+`BAT0._BST` gets status from `BTST/FCST`, current rate `(BTCT*BTVT)/1000` at index 1, remaining energy `(BTPR*BTDV)/1000` at index 2 and voltage `BTVT` at index 3. `BAT1._STA` is hardcoded zero. Legacy `_BIF` contains placeholder strings such as BASE-BAT / 12345678; **these are not physical battery serial values**. The dynamic read-only source is `_BIX`, not the placeholder.
+
+**New 4-gate ACPI battery telemetry route: approximately 75% (3/4).** Closed at static level: EC field/identity, formula and standard ACPI OS-facing method. Still open: real target readout/value validity and supported Manager read-only adapter. This does not elevate the separate 80% charging toggle or OEM advisory beyond their prior evidence.
+
+Evidence: installed DSDT `SMA2` and `BAT0._BIX/_BST`; OEM method `0xA82`/`0x1C50..0x1CC3`. Static assertions passed; no serial value was accessed.

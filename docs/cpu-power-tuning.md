@@ -105,9 +105,9 @@ The processor PL1/PL2 override questions are additionally gated by a volatile fe
 - gate field: +0x1A
 - target form question ID: 0x1C48
 
-**UNKNOWN semantic meaning**
+**CONFIRMED computed ConfigTDP gate; actual MSR contents on target UNKNOWN.**
 
-The value is used as a computed capability gate, not as a normal user setting. Its producer and exact meaning have not yet been recovered. Do not label it as an overclocking-lock or SKU flag without direct evidence.
+SetupUtility computes field +0x1A from MSR_PLATFORM_INFO[34:33]. See the new cTDP producer section. This is not an overclock lock.
 
 The variable name is independently consumed by MeSmbiosUpdateConfig, but that module only reads feature bytes; it does not prove ownership or production of +0x1A.
 
@@ -168,7 +168,7 @@ Current semantic status:
 
 ## Next evidence boundaries
 
-1. recover the producer/meaning of SetupCpuFeatures +0x1A;
+1. validate the newly recovered ConfigTDP producer of SetupCpuFeatures +0x1A against target MSR readback;
 2. trace CpuSetup PL1/PL2 values into the native Intel policy / hardware programming path;
 3. determine whether the values can be changed safely at runtime or require reboot;
 4. identify the dynamic voltage-control producer and target-specific offset/sign encoding;
@@ -200,7 +200,7 @@ Static comparison of the native `CpuSetup` consumers also shows `PlatformInitDxe
 
 ## SetupCpuFeatures GUID and MTRR false-positive audit
 
-**CONFIRMED bounded static behavior; `SetupCpuFeatures+0x1A` producer and native PL1/PL2 application still UNKNOWN.**
+**CONFIRMED bounded static behavior; later cTDP research recovered the +0x1A producer. Actual PL1/PL2 hardware application remains UNKNOWN.**
 
 The canonical `SetupCpuFeatures` vendor GUID `EC87D643-EBA4-4BB5-A1E5-3F3E36B20DA9` has little-endian bytes `43 D6 87 EC A4 EB B5 4B A1 E5 3F 3E 36 B2 0D A9`. A previous local search used the incorrect sequence `...EC E4 EB...` and falsely returned no firmware GUID matches. A corrected read-only scan identified **16 file copies containing the proper GUID** across extracted PE images; these are **GUID byte occurrences, not proof of 16 consumers of the named UEFI variable**.
 
@@ -210,7 +210,7 @@ A true read of the named `SetupCpuFeatures` variable is present in `MeSmbiosUpda
 
 The native `PlatformInitAdvancedDxe.efi` also contains several real `WRMSR` instructions, but these must not be misreported as PL1/PL2 writes. The observed actions read/update `MSR 0x2FF` (MTRR default type), iterate indexed `0x250/0x258/0x259/0x268..0x26F` entries from table `0x9550`, and use `MSR 0xFE` to bound variable MTRRs `0x200/0x201` and following pairs. The corresponding native module is therefore carrying out **MTRR save/reprogram/restore behavior**, not a proven write to package power-limit `MSR 0x610` or to a confirmed processor power policy. This closes a misleading `WRMSR` candidate, not the PL1/PL2 route.
 
-**Report checkpoint:** PL1/PL2 static-to-OS route remains **2/4 = 50%**, unchanged from the preceding checkpoint. The remaining steps are a verified native consumption/programming edge for the actual `CpuSetup` limit fields and a safe runtime/OS access path. For the `SetupCpuFeatures+0x1A` subproblem, the only presently closed fact is that it exists as an HII visibility gate; a named consumer at **other offsets** does not make its producer known.
+**Report checkpoint:** PL1/PL2 static-to-OS route remains **2/4 = 50%**, unchanged from the preceding checkpoint. The remaining steps are a verified native consumption/programming edge for the actual `CpuSetup` limit fields and a safe runtime/OS access path. Historical checkpoint superseded: SetupUtility now proves the +0x1A producer and MSR field meaning, but not the PL1/PL2 hardware writer.
 
 Evidence: retained installed modules `corpus/analysis-modules/TM2309_2024-06-04_PlatformInitAdvancedDxe.efi`, `corpus/analysis-modules/TM2309_2024-06-04_MeSmbiosUpdateConfig.efi` and existing HII form inventory. Only static PE disassembly; no target execution or NVRAM modification.
 
@@ -324,3 +324,49 @@ The readout route is adjacent to reads of the named `SetupCpuFeatures` (size `0x
 **User-facing capability boundary:** this can support a *future* semantic `PackagePowerLimitCurrentReadback` contract at the firmware UI/static level, but does **not** by itself expose a safe user-space backend. It complements the independent `ThermalSmm` writer/automatic EC-event route. `CpuSetup → PL1/PL2 → OS control` remains **2/4 = 50%**, and the `ThermalSmm` route remains **3/4 = 75%**; neither outstanding gate is closed by BIOS UI telemetry. In particular the fixed plant-policy rows, active unit exponent and package lock state are not determined by this analysis alone.
 
 Evidence: `corpus/analysis-modules/TM2309_0A0A_MS_SetupUtility_FE3542FE-C1D3-4EF8-657C-8048606FF670_PE32.efi` and B0B counterpart (selected instruction offsets above), plus the already characterized installed `ThermalSmm` action. All evidence is static and read-only.
+
+
+## cTDP feature producer and Intel IPF arbitration (2026-10-08)
+
+**CONFIRMED static HII/native target code; actual CPU capability bits, PL hardware programming and safe OS setter UNKNOWN.**
+
+### Producer of SetupCpuFeatures+0x1A — no longer unknown
+
+The installed A0A and B0B SetupUtility at `0x6970..0x6D7E` reads, rebuilds, and SetVariable-writes the 42-byte `SetupCpuFeatures` variable (GUID `EC87D643-EBA4-4BB5-A1E5-3F3E36B20DA9`). The output buffer is `rsp+0x50`; `0x69FA` calls `0x2758C` and `0x69FF` stores AL to `rsp+0x6A` = variable offset **+0x1A**.
+
+The helper `0x2758C..0x275AE` reads **MSR_PLATFORM_INFO (0xCE)** using native RDMSR and extracts bits [34:33]. Its exact 4-value output truth table is:
+
+| MSR 0xCE [34:33] | SetupCpuFeatures+0x1A |
+| ---: | ---: |
+| 0 | 0 |
+| 1 | 1 |
+| 2 | 1 |
+| 3 (reserved) | 0 |
+
+Intel defines this MSR field as the **number of additional configurable TDP levels** (0/1/2). The canonical flag is thus `ConfigTdpAdditionalLevelAvailable` — **not an overclock/undervolt lock**. The firmware's static computation is confirmed; the target Intel Core Ultra 7 155H's *actual* register content and runtime UEFI variable-write success are unknown. Intel documentation: https://cdrdv2-public.intel.com/843823/252046-sdm-change-document-1.pdf .
+
+### Full cTDP HII matrix
+
+SetupUtility IFR form `Config TDP Configurations`, ID `0x10E9`, references CpuSetup VarStore `0x3` (GUID `B08F97FF-E6E8-4193-A997-5E9E9B0ADB32`, 0x5E0 bytes).
+
+| CpuSetup offset | Confirmed HII semantics |
+| --- | --- |
+| +0x28D | Enable cTDP: 0 for non-cTDP, 1 for cTDP (default) |
+| +0x41 | Configurable TDP Boot Mode 0 Nominal default; 1 Level1; 2 Level2; 0xFF Deactivate |
+| +0x42 | Configurable TDP Lock: 0 Disabled default, 1 Enabled |
+| +0x43 | CTDP BIOS control: 0 Disabled default, 1 Enabled |
+| +0x49 / +0x4D / +0x51 / +0x52 | Nominal PL1 dword / PL2 dword / PL1 window byte / Turbo Activation Ratio byte |
+| +0x53 / +0x57 / +0x5B / +0x5C | Level1 PL1 dword / PL2 dword / window byte / activation ratio byte |
+| +0x5D / +0x61 / +0x65 / +0x66 | Level2 PL1 dword / PL2 dword / window byte / activation ratio byte |
+
+The PL1/PL2 HII numeric range is 0..`0x3E7F83`, step `0x7D` (125 mW). HII existence does not establish hardware availability.
+
+### Confirmed separate BIOS/IPF arbitration
+
+The HII field `DptfConfig+0x01` (VarStore ID 0x9; GUID `AC5CF0C1-A682-478F-8AA8-F285091B2A85`, 0x26 bytes) is **Intel(R) Innovation Platform Framework**: 1 Enabled default, 0 Disabled. The HII CTDP BIOS Control question is suppressed when cTDP Lock is 1 **OR** Intel IPF is Enabled.
+
+Native `AdvancedAcpiDxe` reads CpuSetup and DptfConfig at `0x286E` / `0x2906`. At `0x2A7F..0x2AA7` it writes a constructed ACPI/configuration object's byte `+0x75` as **zero when CpuSetup+0x42==1 OR DptfConfig+0x01==1; otherwise copies CpuSetup+0x43**. This independently corroborates the HII arbitration and proves a platform configuration policy route, but **NOT** actual PL1/PL2 writing to MSR 0x610 or safe runtime OS control.
+
+**New five-gate cTDP capability/configuration route: approximately 60% (3/5).** Closed: exact HII layout, real feature producer/Intel MSR semantics, native IPF-lock arbitration. Open: effective cTDP hardware programming and safe OS/device execution. The earlier CpuSetup PL1/PL2-to-OS route remains 2/4=50%; the separate automatic ThermalSmm route remains 3/4=75%.
+
+Primary evidence: installed A0A/B0B SetupUtility native `0x6970..0x6D7E`, `0x2758C..0x275AE`; IFR `0x176BAD..0x1770A0`; native AdvancedAcpiDxe `0x283C..0x2AA7`. Byte/IFR/branch truth-table assertions all passed.
