@@ -123,19 +123,16 @@ Identity:
 The module reads a 0x4B0-byte UEFI configuration variable named `Setup` using GUID
 `A04A27F4-DF00-4D42-B552-39511302113D` and applies several configuration fields directly to the EC operation region.
 
-Its selector-dispatch action uses selector `5` for the performance/fan profile. The input comes from configuration byte offset `0x43` and is normalized before writing `QFAN`:
+Its selector-dispatch action uses selector `5` for the performance/fan profile. Corrected structure typing proves that the input is Setup/SystemConfig byte `+0x103`, the visible **System Performance Mode** field. Earlier `+0x43` reporting was an RBP-relative local-stack coordinate and is **WITHDRAWN**, not a Setup offset.
 
-| Setup configuration byte +0x43 | Written QFAN profile |
-| --- | --- |
-| 0 | 3 — performance / Turbo |
-| 2 | 2 — quiet |
-| other values | 1 — balanced |
+| Setup/SystemConfig +0x103 | Setup label | Written QFAN profile |
+| ---: | --- | ---: |
+| 0 | Turbo Mode | 3 — performance / Turbo |
+| 1 | Balance Mode | 1 — balanced |
+| 2 | Silence Mode | 2 — quiet |
+| 3 | Full Speed Mode | 1 at this boot-time HQDxeService normalization path; the native WMI bridge separately maps SystemConfig value 3 to external/QFAN value 4 |
 
-Canonical semantic name for the input field at the current evidence level:
-
-`SetupPerformanceProfileSelector`
-
-The name describes only its proven behavior. No visible HII question has yet been proven to own this offset, so do not assign a BIOS-menu label to it.
+The native WMI bridge remains the authoritative bidirectional mapping for the user-facing four-mode performance capability. This HQDxeService path is an early-boot synchronization path and must not be silently substituted for the runtime WMI mapping.
 
 The relevant action runs during the `HQDxeService` DXE entrypoint initialization chain, immediately after service/protocol initialization. This establishes an early-boot Setup → EC profile synchronization path in addition to the runtime WMI paths.
 
@@ -149,21 +146,36 @@ The complete `HQDxeService` PE image is byte-identical between the official 2024
 Therefore the native Setup → QFAN mapping above did not change between these releases.
 
 
-### HQDxeService hidden Setup → EC selector map
+### HQDxeService Setup → EC selector map
 
-**CONFIRMED unless explicitly marked LIKELY**
+**CONFIRMED — corrected static target evidence**
 
-The entrypoint applies six bytes from the 0x4B0-byte Setup configuration to EC state through one selector-dispatch action. None of the source offsets below appears as an ordinary `SystemConfig` HII question in the target SetupUtility IFR, so these are internal platform fields rather than directly exposed BIOS-menu questions.
+The entrypoint reads the persisted 0x4B0-byte Setup configuration into a local buffer and applies six fields to EC state through one selector-dispatch action. Earlier reports that named Setup offsets `+0x29/+0x2A/+0x33/+0x34/+0x42/+0x43` are **WITHDRAWN**: those values were local RBP-relative stack coordinates. Structure typing and the independent H2O Setup UI route establish the real Setup offsets below.
 
-| Native selector | Setup offset | EC target | Recovered semantic contract |
+| Native selector | Setup/SystemConfig offset | EC target | Recovered semantic contract |
 | --- | ---: | --- | --- |
-| 1 | `+0x33` | `AOUF`, EC byte `0x18` bits 0..1 | **LIKELY** USB-charge / always-on-USB mode. Preserve raw field name `AOUF` until a stronger producer/consumer proves the exact label. |
-| 2 | `+0x34` | `UCBT`, EC byte `0xAC` | USB charging battery threshold. |
-| 3 | `+0x29` | `IKBW`, EC byte `0x18` bit 5 | Internal-keyboard wake enable. |
-| 4 | `+0x42` | `KBMD`, EC byte `0xB2` bit 7 | Keyboard-backlight mode. |
-| 5 | `+0x43` | `QFAN`, EC byte `0x60` | Performance/fan profile selector; mapping documented above. |
-| 6 | `+0x2A` | `WOUB`, EC byte `0x18` bit 6 | Wake-on-USB enable. ACPI deep-standby logic disables XHCI PME when `WOUB == 0`. |
+| 1 | `+0xF3` | `AOUF`, EC byte `0x18` bits 0..1 | USB Charge mode: 0 Off, 1 Always on, 2 One time only. |
+| 2 | `+0xF4` | `UCBT`, EC byte `0xAC` | USB Charge Battery Threshold: 10/20/30 percent. |
+| 3 | `+0xE9` | `IKBW`, EC byte `0x18` bit 5 | Internal-keyboard wake enable. |
+| 4 | `+0x102` | `KBMD`, EC byte `0xB2` bit 7 | Keyboard-backlight policy: 0 Standard, 1 Power Saving. This is distinct from live backlight level field `KBLL`. |
+| 5 | `+0x103` | `QFAN`, EC byte `0x60` | Boot-time performance/fan profile synchronization. |
+| 6 | `+0xEA` | `WOUB`, EC byte `0x18` bit 6 | Wake-on-USB enable. ACPI deep-standby logic disables XHCI PME when `WOUB == 0`. |
 
 The action preserves unrelated bits when writing packed EC bytes. Selector 1 replaces only the low two `AOUF` bits; selectors 3 and 6 toggle only their individual bits.
 
 This selector map is byte-identical in the 2024-04-07 and 2024-06-04 releases because the complete `HQDxeService` PE is identical.
+
+### Persisted fine fan-policy fields
+
+**CONFIRMED semantics; hardware apply route not yet proven**
+
+The H2O Setup UI and typed `TM2309_PlatformControlSetup` structure close four additional persisted fan-policy fields:
+
+| Setup/SystemConfig offset | Canonical semantic field | User values |
+| ---: | --- | --- |
+| `+0xF5` | CPU Auto Mode fan preset | 0 Gaming, 1 Normal, 2 Office |
+| `+0xF6` | GPU Auto Mode fan preset | 0 Gaming, 1 Normal, 2 Office |
+| `+0xF7` | CPU FAN Turbo Mode Speed | 0 Max, 1 Medium; raw value 2 is a platform-compatibility alias for Medium on one variant |
+| `+0xF8` | GPU FAN Turbo Mode Speed | 0 Max, 1 Medium; raw value 2 is a platform-compatibility alias for Medium on one variant |
+
+The BIOS UI change path persists these fields, reloads/normalizes the Setup model and refreshes UI/telemetry state. No direct EC write or OEM hardware-control apply call is present in that immediate route. Therefore these are **persisted firmware-policy capabilities**, not proven live controls. RedmiBook Manager must not promise immediate effect until a separate apply route receives execution/static proof.

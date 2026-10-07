@@ -211,19 +211,37 @@ The module copies fields one-for-one in both directions. Relevant mappings:
 | 0x109 | 0x0F | UNKNOWN numeric byte |
 | 0xF3 | 0x13 | USB Charge |
 | 0xF4 | 0x14 | USB Charge Battery Threshold |
-| 0xF5 | 0x31 | fan-related Setup field, semantics not yet closed |
-| 0xF6 | 0x32 | fan-related Setup field, semantics not yet closed |
-| 0xF7 | 0x34 | fan-related Setup field, semantics not yet closed |
-| 0xF8 | 0x35 | fan-related Setup field, semantics not yet closed |
+| 0xF5 | 0x31 | CPU Auto Mode fan preset: 0 Gaming, 1 Normal, 2 Office |
+| 0xF6 | 0x32 | GPU Auto Mode fan preset: 0 Gaming, 1 Normal, 2 Office |
+| 0xF7 | 0x34 | CPU FAN Turbo Mode Speed raw preset: 0 Max, 1 Medium, 2 Medium compatibility alias |
+| 0xF8 | 0x35 | GPU FAN Turbo Mode Speed raw preset: 0 Max, 1 Medium, 2 Medium compatibility alias |
 | 0xF9 | 0x33 | fan-related Setup field, semantics not yet closed |
 
 No value conversion occurs in this backup/restore module.
 
 ## Other confirmed Setup controls
 
+### Native Setup → EC synchronization
+
+**CONFIRMED — corrected static target evidence**
+
+`HQDxeService` reads the persisted 0x4B0-byte Setup configuration and applies six fields directly to EC state during DXE initialization:
+
+| Setup/SystemConfig offset | EC state | Semantic contract |
+| ---: | --- | --- |
+| `+0xE9` | `IKBW` | internal-keyboard wake enable |
+| `+0xEA` | `WOUB` | wake-on-USB enable |
+| `+0xF3` | `AOUF` | USB Charge mode |
+| `+0xF4` | `UCBT` | USB Charge Battery Threshold |
+| `+0x102` | `KBMD` | keyboard-backlight policy |
+| `+0x103` | `QFAN` | performance/fan profile boot-time synchronization |
+
+Earlier reports using `+0x29/+0x2A/+0x33/+0x34/+0x42/+0x43` as Setup offsets are **WITHDRAWN**. Those were RBP-relative local-stack coordinates; typed Setup-buffer recovery establishes the offsets above.
+
+
 ### USB charging
 
-**CONFIRMED HII semantics; hardware apply route still UNKNOWN**
+**CONFIRMED HII semantics; boot-time hardware apply CONFIRMED, live OS apply UNKNOWN**
 
 `SystemConfig+0xF3`: USB Charge
 
@@ -236,6 +254,9 @@ No value conversion occurs in this backup/restore module.
 - 10 = 10%
 - 20 = 20%
 - 30 = 30% (default)
+
+`HQDxeService` selector 1 applies `SystemConfig+0xF3` to EC `AOUF` at boot, and selector 2 applies `SystemConfig+0xF4` to EC `UCBT`. The persisted policy and boot-time hardware path are therefore CONFIRMED. A live operating-system setter for these two fields is not yet proven.
+
 
 ### Type-C non-PD input threshold
 
@@ -263,6 +284,20 @@ The default value is 2 = 5V/0.5A. Other option labels remain to be materialized 
 - 0 = Standard
 - 1 = Boost (default)
 
+
+### Fine fan preset policy
+
+**CONFIRMED HII/UI semantics; live hardware apply UNKNOWN**
+
+The persisted Setup structure contains paired CPU/GPU fan-policy selections:
+
+- `SystemConfig+0xF5`: CPU Auto Mode fan preset — 0 Gaming, 1 Normal, 2 Office.
+- `SystemConfig+0xF6`: GPU Auto Mode fan preset — 0 Gaming, 1 Normal, 2 Office.
+- `SystemConfig+0xF7`: CPU FAN Turbo Mode Speed — 0 Max, 1 Medium; raw value 2 is treated as a platform-compatibility alias for Medium on one variant.
+- `SystemConfig+0xF8`: GPU FAN Turbo Mode Speed — same encoding.
+
+The BIOS UI update path persists these values and refreshes its control model. The immediate post-update route contains no direct EC write or OEM hardware-control apply operation for these four fields. Treat them as persisted firmware policy until another target route or runtime evidence proves when/how they become active.
+
 ### Keyboard backlight Setup mode
 
 **CONFIRMED HII semantics**
@@ -272,7 +307,7 @@ The default value is 2 = 5V/0.5A. Other option labels remain to be materialized 
 - 0 = Standard
 - 1 = Power Saving (default)
 
-A direct mapping from this Setup field to EC `KBLL` has not been established.
+`HQDxeService` selector 4 maps this field to EC `KBMD` (byte 0xB2 bit 7) during boot-time Setup → EC synchronization. This policy bit is distinct from live keyboard-backlight level/state field `KBLL` (bits 0..6).
 
 ## Keyboard-backlight event contract
 
