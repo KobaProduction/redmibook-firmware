@@ -216,7 +216,7 @@ Evidence: retained installed modules `corpus/analysis-modules/TM2309_2024-06-04_
 
 ## ThermalSmm native package power-limit writer (2026-10-08)
 
-**CONFIRMED static x86-64 MSR write and three-row data table on the installed 2024-06-04 image; caller reachability, actual runtime effect, and connection to `CpuSetup` are UNKNOWN.**
+**CONFIRMED static x86-64 MSR write and three-row data table on the installed 2024-06-04 image; SMM callback registration and its ACPI trigger are confirmed below. Actual runtime execution, hardware outcome, and connection to `CpuSetup` remain UNKNOWN.**
 
 A targeted PE executable-section inspection found a concrete candidate for **native RAPL power-limit programming** in `ThermalSmm` (FFS GUID `8C916319-1334-419A-9F2C-976CABFDBBCA`). Its writer routine at RVA `0x14F0` reads EC status through the serialized legacy ports `0x66/0x62` (helper `0x1C6C`), queries one OEM platform classifier `0x140C04`, selects one of three data rows, and executes these read/modify/write MSR operations:
 
@@ -236,9 +236,9 @@ All five values are shifted by `<<3` before insertion. **These are native table 
 
 **Release comparison:** the .text section bytes and the above three data rows are byte-identical in the retained `ThermalSmm` images dated 2024-04-07 and 2024-06-04, despite different PE file packing/section raw sizes.
 
-**Reachability caveat:** no inbound direct `call`, `jmp`, or RIP-relative code reference to RVA `0x14F0` was identified in a bounded `objdump` search (apart from an internal same-routine branch at `0x16A0`). A possible SMM dispatch/indirect callback edge is **not confirmed**. Presence of this writer routine is **implementation/static proof only**, not proof that it executes on TM2309 hardware under any selectable policy. Do not expose a PL1/PL2 setter from this finding.
+**Callback dispatch recovered (static):** no ordinary inbound direct `call` to RVA `0x14F0` exists because the firmware registers callback `0x16A0` via `EFI_SMM_SW_DISPATCH2_PROTOCOL` with software-SMI input `0xC2`; that callback jumps to `0x14F0`. The installed ACPI EC query `_Q35` writes `0xC2` to I/O port `0xB2`, providing the triggering route. Full instruction and GUID evidence is recorded in the later `ThermalSmm SW-SMI dispatch and ACPI EC trigger` section. **Runtime event delivery/execution is not proven**, and this is not a user-accessible PL1/PL2 setter.
 
-**Report checkpoint definitions:** the earlier selected **CpuSetup→PL1/PL2→safe OS control** investigation stays **2/4 = 50%**, because the missing `CpuSetup` field-to-actual-writer edge is not closed. A newly tracked **ThermalSmm package-power-policy investigation** stands at **2/4 = 50%**: (1) exact MSR writes and (2) row literals/selection structure are static-confirmed; (3) actual dispatch/entrypoint reachability and (4) safe execution/OS accessibility remain open. This new 50% is scoped to this SMM branch and is not the total CPU-power coverage.
+**Report checkpoint definitions (current):** **CpuSetup→PL1/PL2→safe OS control** remains **2/4 = 50%** because the actual `CpuSetup` field-to-writer edge is not closed. The selected **ThermalSmm package-power-policy** route is now **3/4 = 75%**: exact MSR writes, row literals/selection, and SMM dispatch with an ACPI EC event trigger are statically confirmed. Hardware execution/operational acceptance and a safe OS setter remain open. These percentages are limited to their respective route denominators, not total CPU-power feature coverage.
 
 Evidence: `corpus/control-modules/TM2309_2024-06-04_ThermalSmm_8C916319-1334-419A-9F2C-976CABFDBBCA_PE32.efi` (instructions `0x14F0..0x169D`, table `0x20F0..0x2137`) and retained 2024-04-07 counterpart. No device memory/register writes or hardware probes were performed during this analysis.
 
