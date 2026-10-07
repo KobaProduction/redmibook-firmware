@@ -179,3 +179,20 @@ The H2O Setup UI and typed `TM2309_PlatformControlSetup` structure close four ad
 | `+0xF8` | GPU FAN Turbo Mode Speed | 0 Max, 1 Medium; raw value 2 is a platform-compatibility alias for Medium on one variant |
 
 The BIOS UI change path persists these fields, reloads/normalizes the Setup model and refreshes UI/telemetry state. No direct EC write or OEM hardware-control apply call is present in that immediate route. Therefore these are **persisted firmware-policy capabilities**, not proven live controls. RedmiBook Manager must not promise immediate effect until a separate apply route receives execution/static proof.
+
+
+## Five-pass Manager capability status checkpoint (2026-10-08)
+
+**Source-derived future interface inventory only. No Manager implementation, EC/MSR writes or on-device tests were performed.**
+
+| Semantic capability | Proven factory contract | Acceptance boundary for Manager |
+| --- | --- | --- |
+| EC performance mode | MIFS WMAA GET/SET ↔ QFAN / NTDP; same-model runtime corroboration | Use model-specific MIFS adapter; validate on target laptop |
+| Battery charge protection (80%) | MIFS function 0x10, sub2 ↔ LONL bit0 | Model-specific GET/SET; never map this ID to a generic keyboard command |
+| Battery identity/design/full-charge/status | Standard `BAT0._BIX/_BST` from EC fields, OEM independent 32-byte BASN serial reader | Read-only OS battery data; validate capacity and privacy of serial |
+| CPU fan speed / duty | PTID consumer uses ERCF / ERPN EC methods | Read-only candidate; method producer and supported OS path not verified |
+| Fine CPU/GPU fan policy | Four `SystemConfig+0xF5..+0xF8` fields and backup/UI | Research-only; actual EC hardware application and OS setter unknown |
+| cTDP power settings | Computed `SetupCpuFeatures+0x1A` from MSR 0xCE; HII nominal/level1/level2 policy; native AdvancedAcpiDxe arbitration with Intel IPF | Research-only; no CpuSetup PL1/PL2-to-hardware MSR path or safe OS override |
+| S5/RTC wake | BIOS Setup stored schedule and separate Huaqin WM01/WMAB methods | Research-only; compatible payload and real hardware wake unverified |
+
+HII presence and standard ACPI method identity are **implementation/static proof**, not execution or board acceptance. Keep one canonical semantic capability where several OEM transports refer to the same state. The broad literal EC scan is negative only for immediate addresses, not indirect control.

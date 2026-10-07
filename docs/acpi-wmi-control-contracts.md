@@ -623,3 +623,23 @@ An independent bounded scan of **46 FFS modules of type SMM (0x0A) with directly
 **Correct conclusion:** the **visible direct-GUID/constant registration path does not identify the Huaqin SW-SMI command `0x82` owner**. The entire firmware's dispatch space is not proven absent: an image can obtain the SW dispatch protocol indirectly, use variable/context-derived input IDs, register through another dispatch path, or invoke code in a missing/opaque EC/SMM component. Do not scan every generic UEFI action looking for a number divorced from its owner. The next valid evidence path is a concrete indirect-registration producer, or controlled preexisting runtime telemetry/trace evidence if available. No write/probe to SMI ports, EC or CMOS is authorized by this result.
 
 **HQWI S5/RTC investigation checkpoint unchanged: 2/4 = 50%.** Exact WMI method interface and command transport are known; accepted wake argument semantics and target execution/wake remain UNKNOWN. These bounded negative scans improve confidence about *where not to look*, but close neither remaining gate.
+
+
+## BIOS Setup S5 wake scheduling is distinct from Huaqin WMI (2026-10-08)
+
+**CONFIRMED HII field identity; WM01/WMAB payload compatibility UNKNOWN.**
+
+Installed SetupUtility IFR Power form includes the following `SystemConfig` settings (VarStore 0x1234, GUID A04A27F4-DF00-4D42-B552-39511302113D):
+
+| Offset | HII meaning |
+| --- | --- |
+| +0x86 | Wake on PME: 0 Disabled, 1 Enabled default |
+| +0x87 | Wake on Modem Ring: 0 Disabled default, 1 Enabled |
+| +0x88 | Auto Wake on S5: 0 Disabled default, 1 Every Day, 2 By Day of Month |
+| +0x89 | Wake on S5 Time: 3-byte EFI IFR Time, default 00:05:00 |
+| +0x8C | Day of Month: 1..31, default 1; exposed for mode 2 |
+| +0x198 | S5 Long Run Test: 0 Disabled default, 1 Enabled; factory/test-only, **not an ordinary Manager feature** |
+
+Visibility is controlled by S5 mode and additional HII conditions. These fields establish persisted BIOS configuration. Huaqin `WM01` operation 0x03 separately sends a one-byte integer via SMI 0x82 and optionally EC ECD2(0xDD,value), and `WMAB` operation 1 uses RTC/CMOS wake status. No evidence connects these WM commands to the stored mode/time/day bytes or proves that raw HII values are safe WMI command arguments. Do not construct a wake setter from this guess; the HQWI S5/RTC investigation remains **2/4 = 50%**.
+
+Evidence: installed SetupUtility Power IFR `0x1701FF..0x170311`, and retained HQNVS000 AML.

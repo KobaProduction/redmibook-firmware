@@ -88,4 +88,4 @@ Direct writes to `KBLL` are not currently part of the supported control contract
 - same-model execution evidence: **CONFIRMED**;
 - WMI setter function `0x12`: **CONFIRMED unsupported**;
 - safe software write route: **UNKNOWN**;
-- `KBMD` boot-time mode-bit contract: **CONFIRMED**; exact `Power Saving` / `Always on` polarity: **UNKNOWN**.
+- `KBMD` boot-time mode-bit contract and exact **Standard / Power Saving storage polarity: CONFIRMED**. Setup 0 Standard writes KBMD=1; Setup 1 Power Saving writes KBMD=0. Physical backlight timeout and relation to independent `KBLL=8` Always on state remain UNKNOWN.

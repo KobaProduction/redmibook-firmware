@@ -129,7 +129,7 @@ Structural parsing of its field definition confirms:
 | ADPW | byte 0x81 | 8 bits | adapter/power-derived status |
 | SOH1 | byte 0xAB | 8 bits | UNKNOWN status |
 | KBLL | byte 0xB2, bits 0..6 | 7 bits | keyboard-backlight state |
-| KBMD | byte 0xB2, bit 7 | 1 bit | keyboard-backlight mode |
+| KBMD | byte 0xB2, bit 7 | 1 bit | confirmed Standard/Power Saving boot-time policy; physical timeout unknown |
 
 FNSP must not be named or exposed as fan RPM: target evidence proves it is only one bit.
 
@@ -217,3 +217,22 @@ A read-only `objdump` scan deduplicated by full-file SHA-256 across the retained
 **No additional fine-fan-duty write was identified by this literal-address scan.** This must **not** be reported as proof that no such writer exists: a native consumer could compute an address from the `ERAM` base, write through a pointer, call another EC service, reside in a missing firmware module, or use a different bus/transport. The explicit scan remains a bounded negative-result artifact, not device-hardware acceptance.
 
 The fine-fan route remains **3/5 = 60%** on the established denominator: persisted semantics + UI model + examined OEM provider are known; hardware apply and safe OS reachability remain open. Do not increase this metric from negative scans.
+
+
+## Inner-FV complete EC literal access audit (2026-10-08)
+
+**CONFIRMED bounded static evidence, not proof of no indirect fan controller.** An 8-byte-aligned FFS walk of the installed decompressed A0A firmware volume found 356 FFS envelopes and **317 SHA-256-unique directly extractable PE images**. A byte-level search for little-endian immediate addresses in the EC MMIO range `0xFE0B0300..0xFE0B03FF` found matches in **only five unique native PE images**:
+
+| PE image | EC offset literal values (hex) |
+| --- | --- |
+| SmbiosDxe | 00,01,03 |
+| IhisiServicesSmm | 80,92 |
+| TbtRetimerCapsule1Dxe | 80,92 |
+| OemODMDxeDriver | 00,01,03,80,81,92 |
+| HQDxeService | 18,60,AC,B2 |
+
+`HQDxeService` still owns the six known boot-time Setup→EC actions (performance QFAN, USB charging/wake, keyboard backlight policy). There is **no newly identified direct literal-address writer** for fine CPU/GPU fan preset/curve values. This broader 317-PE screen supersedes the old 41-PE subset **only for literal 0xFE0B03xx address occurrences**: computed addressing, legacy EC indexed ports, controller firmware, non-PE modules and alternative interfaces remain unexcluded. Do not interpret this negative result as proof that no native fan setter exists.
+
+Across retained April/June DSL tables, `ERCF`, `ERPN`, `ERSP`, `ERPC` occur only as externally declared methods and/or consumers, not defined methods. Thus PTID raw fan telemetry descriptors exist, but the actual EC method implementation/scale is **not recovered from the retained ACPI subset**. The separate EC SMA2 identity/mailbox address `0xFE0B0A00` is not covered by this ERAM-only scan.
+
+**Fine CPU/GPU fan policy remains 3/5 = 60%** (HII semantics, persisted UI, observed OEM provider). Actual EC apply and safe OS control remain unknown; raw hit counts are not a new closure.
