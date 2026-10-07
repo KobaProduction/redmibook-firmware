@@ -595,3 +595,31 @@ An independent read-only byte-level audit verified both GUID identities, the two
 **Remaining gates unchanged:** the Huaqin S5/RTC wake interface investigation remains **2/4 = 50%**. The default dynamic SMI config path is now statically grounded, but the accepted wake payload encoding/domain and target-machine OS/wake execution remain UNKNOWN. Do not trigger software SMIs or change CMOS/EC wake state as a discovery probe.
 
 Primary evidence: extracted installed `corpus/analysis-modules/TM2309_2024-06-04_OemDataServiceBodyDxe.efi`; `corpus/analysis-modules/TM2309_2024-06-04_OemDataServiceBodySmm.efi`; `corpus/smm-hqwi-candidates/OemSmmServiceBody.efi`. Evidence is instruction-level static proof, not board execution.
+
+### Full decompressed-FV audit of software-SMI 0x82 ownership
+
+**CONFIRMED bounded installed-image FFS/PE audit, with 2025 B0B binary comparison; 0x82 owner remains UNKNOWN.**
+
+Earlier screening for `EFI_SMM_SW_DISPATCH2_PROTOCOL` GUID `18A3C6DC-5EEA-48C8-A1C1-B53389F98999` was limited to **41 SHA-256-deduplicated already-extracted EFI modules**, locating eight carriers. This must not be treated as a complete installed firmware inventory.
+
+A fresh read-only examination of `corpus/TM2309_0A0A_MS_GUIDED_EE4E5898-3914-4259-9D6E-DC7BD79403CF_decompressed.bin` mapped the uncompressed nested firmware volume at `0x80` (FV size `0x14F8000`, FFS start `0xC8`). Iterating 8-byte-aligned FFS headers, including the extended-size case and intervening PAD/FF GUID entries, found **356 FFS envelopes** before free flash padding. Parsing 4-byte-aligned section headers identified PE32 sections and the UTF-16 UI names. The GUID has **44 physical occurrences** distributed among **27 FFS entries**, but only **21 of those FFS entries contain the GUID directly in their PE32 executable images**. Other occurrences belong to dependency/metadata sections, which are not native callback-registration instructions. Counting literal GUID occurrences as 44 SMM code owners is invalid.
+
+A narrow `objdump -d -M intel` audit of these **21 GUID-bearing PE images** found no confirmed `EFI_SMM_SW_DISPATCH2_PROTOCOL.Register` call passing the literal input `0x82`. Targeted callback registrations were verified instead:
+
+| Recovered module | Confirmed SW-SMI inputs | Machine-code evidence |
+| --- | --- | --- |
+| `PnpSmm` (FFS `CC1BAA36-11EB-45CC-9ADC-7565E273AC70`) | `0x47` | `0x1BAA..0x1BDF`, callback `0x3898` |
+| `AcpiCallbacksSmm` (FFS `4FB2CE1F-1A3A-42E3-BD0C-7B84F954189A`) | `0xA0`, `0xA1`, `0xE3` | `0x17B9..0x1824`, callbacks `0x184C`, `0x191C`, `0x19EC` |
+| `SmmPlatform` (FFS `504F2F1F-E7EB-46F9-AA07-0606F311AA1A`) | `0xFB` | `0x1BDF..0x1C0A`, callback `0x1A04` |
+| `ThermalSmm` (FFS `8C916319-1334-419A-9F2C-976CABFDBBCA`) | `0xC2` | Previously recovered SW-SMI power-limit handler |
+| `OemSmmServiceBody` | Defaults `0xC8`, `0xC9`, `0xC5` | OEM dynamic config source chain in preceding section |
+
+**Important false-positive correction:** `PnpSmm` contains immediate constant `0x82` at `0x2B4E`, `0x35A8`, `0x360C`, `0x3987` in distinct PnP/result-status logic. Its actual SW-SMI registration uses `0x47`, so these literals are **not** evidence that `PnpSmm` owns the Huaqin `HSMI(...,0x82)` wake command.
+
+An independent bounded scan of **46 FFS modules of type SMM (0x0A) with directly extractable PE32 images** found literal `0x82` instructions in only the `PiSmmCpuDxeSmm` PE among that subset; this image has **no direct SW-SMI Dispatch2 GUID** and the observed `0x82` uses reside in generic low-level initialization/port-write logic, not a confirmed Huaqin command callback. `PnpSmm` is an FFS DXE driver (0x0C) and so is not in that 46-module SMM subset even though it references the SMM dispatch protocol.
+
+**Version stability:** cross-extracting the **21 GUID-bearing PE images** from both A0A and B0B decompressed firmware volumes and comparing each corresponding FFS by file GUID and PE SHA-256 found **21/21 identical**, with zero changed images or missing direct-GUID carriers. The three newly retained candidate images (read-only copies, not firmware changes) are stored in `corpus/smm-dispatch-candidates-2024-06-04/`: `PnpSmm` (30208 bytes), `AcpiCallbacksSmm` (13824 bytes), and `SmmPlatform` (19968 bytes). A fourth independent `PiSmmCpuDxeSmm` (99328 bytes) was extracted to qualify the literal `0x82` result.
+
+**Correct conclusion:** the **visible direct-GUID/constant registration path does not identify the Huaqin SW-SMI command `0x82` owner**. The entire firmware's dispatch space is not proven absent: an image can obtain the SW dispatch protocol indirectly, use variable/context-derived input IDs, register through another dispatch path, or invoke code in a missing/opaque EC/SMM component. Do not scan every generic UEFI action looking for a number divorced from its owner. The next valid evidence path is a concrete indirect-registration producer, or controlled preexisting runtime telemetry/trace evidence if available. No write/probe to SMI ports, EC or CMOS is authorized by this result.
+
+**HQWI S5/RTC investigation checkpoint unchanged: 2/4 = 50%.** Exact WMI method interface and command transport are known; accepted wake argument semantics and target execution/wake remain UNKNOWN. These bounded negative scans improve confidence about *where not to look*, but close neither remaining gate.
