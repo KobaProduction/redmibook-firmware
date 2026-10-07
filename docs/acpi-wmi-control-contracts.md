@@ -512,3 +512,11 @@ Therefore the factory ODM implementation cannot supply the requested variant thr
 Evidence: retained `corpus/analysis-modules/TM2309_{old,new}_OEM_SetupFanUi_candidate.efi`, `corpus/oem-protocol-candidates/OemODMDxeDriver.efi`, x86-64 instruction views of `0x145C2..0x145EF`, `0x1462A..0x14657`, and `0xA32..0xB33`.
 
 **Investigation checkpoint (selected fine-fan-control static route only): 40% → 60%, 2/5 → 3/5 known decision gates.** Covered: HII/Setup semantics, UI persistence, and the OEM protocol slot's known factory implementation. Still open: actual downstream EC/runtime fan-policy apply and an independently proven safe OS control path. This is not fan hardware acceptance or whole cooling-system coverage.
+
+### Bounded direct-access audit of fine fan fields
+
+**CONFIRMED bounded static audit; negative reachability conclusion NOT established.**
+
+A read-only disassembly scan of **38 unique extracted PE images** (deduplicated by SHA-256 across the current analysis/control/power/SystemConfig module corpus) looked for direct x86-64 memory references at displacement `+0xF5/+0xF6/+0xF7/+0xF8`. The matching grouped fan-policy accesses in this corpus were located in the H2O Setup UI and `AutoBackupSCUSetting`. The latter copies the four bytes from `Setup+0xF5..+0xF8` to backup entries `+0x31,+0x32,+0x34,+0x35` (`0xC45..0xC66`), with the inverse copies at `0xF5C..0xF7A`. This is a **configuration backup/restore** contract, not a demonstrated EC fan writer.
+
+The audit does not cover every firmware volume or indirect/computed address, so it cannot prove the absence of a separate fan-application route. Continue through a new concrete consumer/provider lead or controlled runtime correlation, not repetitive unsupported WMI calls.
