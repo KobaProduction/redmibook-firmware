@@ -393,3 +393,25 @@ Write table (`FUN1=0xFB00`):
 Selector `0x0800` is the native System Performance Mode bridge described above.
 
 Selector `0x0B00` reads/writes `SystemConfig+0x107`, which IFR identifies as **Display Configuration**. The native write handler accepts only values 0 or 1, saves the modified SystemConfig when changed, and invokes the associated OEM apply callback. This selector is therefore **CONFIRMED** as the Display Configuration control route.
+
+
+## Unresolved native service groups
+
+**UNKNOWN semantic meaning; structural dispatch CONFIRMED**
+
+The native SMM WMI dispatcher forwards several still-unclassified groups into an internal OEM SMM service.
+
+Confirmed structure:
+
+- group 0x0900 read returns four 16-bit values from one internal service operation;
+- group 0x0C00 read/write forwards a selector and value through paired internal service operations;
+- groups 0x0D00, 0x0E00 and 0x0F00 share another paired read/write operation keyed by the top-level group identifier.
+
+The internal service used by these routes is identified by raw GUID
+D6CA51D1-6E56-4359-9ACA-663A247D39CD.
+
+Multiple Insyde/OEM SMM modules locate or subscribe to this service. The inspected ODM service module does not establish itself as the D6CA owner; it registers its own service object and separately waits for D6CA availability. No authoritative source name for the D6CA protocol was found.
+
+Do not assign user-facing semantics to groups 0x09, 0x0C or 0x0D..0x0F until their actual producer is recovered or runtime behavior closes the contract.
+
+These groups are not current RedmiBook Manager implementation candidates.
