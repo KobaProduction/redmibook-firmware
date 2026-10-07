@@ -241,3 +241,30 @@ All five values are shifted by `<<3` before insertion. **These are native table 
 **Report checkpoint definitions:** the earlier selected **CpuSetup→PL1/PL2→safe OS control** investigation stays **2/4 = 50%**, because the missing `CpuSetup` field-to-actual-writer edge is not closed. A newly tracked **ThermalSmm package-power-policy investigation** stands at **2/4 = 50%**: (1) exact MSR writes and (2) row literals/selection structure are static-confirmed; (3) actual dispatch/entrypoint reachability and (4) safe execution/OS accessibility remain open. This new 50% is scoped to this SMM branch and is not the total CPU-power coverage.
 
 Evidence: `corpus/control-modules/TM2309_2024-06-04_ThermalSmm_8C916319-1334-419A-9F2C-976CABFDBBCA_PE32.efi` (instructions `0x14F0..0x169D`, table `0x20F0..0x2137`) and retained 2024-04-07 counterpart. No device memory/register writes or hardware probes were performed during this analysis.
+
+## ThermalSmm SW-SMI dispatch and ACPI EC trigger (2026-10-08)
+
+**CONFIRMED — static UEFI SMM registration and installed ACPI trigger; actual SMI delivery/execution and public OS setter UNKNOWN.**
+
+The earlier absence of a direct incoming `call 0x14F0` is explained by an **indirect SMM-dispatch callback**, not by an unreachable/stale routine. The following chain is visible in the retained June `ThermalSmm` PE and June ACPI DSDT:
+
+1. The `ThermalSmm` PE entry point `0x1234` calls initialization routine `0x1428` at `0x1246`. The initializer gets an SMM protocol through `SmmLocateProtocol` (SMM System Table `+0xD0`) at `0x148A..0x1491` using the GUID at RVA `0x20E0`.
+2. The GUID bytes `DC C6 A3 18 EA 5E C8 48 A1 C1 B5 33 89 F9 89 99` resolve to **`EFI_SMM_SW_DISPATCH2_PROTOCOL`** (`18A3C6DC-5EEA-48C8-A1C1-B53389F98999`), whose first interface method is `Register`. The static module sets `EFI_SMM_SW_REGISTER_CONTEXT.SwSmiInputValue = 0xC2` at `0x14A6`, passes handler `0x16A0` at `0x14AF`, and invokes `Register` through `[rax]` at `0x14B9`. Registration has status/error handling; a positive OS-level observation of success is not available.
+3. The supplied callback `0x16A0` is an unconditional branch to `0x14F0`. That target is the recovered direct `MSR 0x65C / 0x610 / 0x601` power-policy writer.
+4. In the installed ACPI DSDT, `\_SB.PC00.LPCB.Q_EC._Q35` calls `P8XH(0, 0x35)`, then assigns `SSMP = 0xC2`. `SSMP` is explicitly the first byte of `OperationRegion(SPRT, SystemIO, 0xB2, 0x02)`. A write of `0xC2` to the legacy software-SMI port therefore matches the registered SMM input `0xC2`. This establishes the target's **EC query -> ACPI write -> SW-SMI dispatch-registration -> native MSR writer route** at the static-instruction level. The actual EC conditions that generate query `0x35`, successful SMM registration, and on-device handler execution remain unobserved.
+
+The same `_Q35` and `SPRT/SSMP` ACPI method/field appear in the retained April 2024 DSDT. The `ThermalSmm` `.text` bytes and three-row policy data match across the retained April/June PE images, so the static route is stable across those two factory releases.
+
+**Policy row selection — confirmed at the branch and raw-data level, not at user-facing profile level:**
+
+- Default internal table row is `0`.
+- The SMM handler reads `ERAM+0x80` (the packed `ACIN` bit 0 and `BTIN` bit 1), `ERAM+0x92` (raw `RSOC`, whose returned byte does **not** drive the visible row branch), `ERAM+0xA9` bit 1 (raw/untyped in the retained DSDT), and `ERAM+0x0E` bit 5 (the packed bit of `TSR6`, physical meaning unknown).
+- A nondefault row is considered only if `(EC[0x0E] & 0x20) != 0`, `BTIN == 1`, and `((EC[0xA9] & 0x02) != 0 || ACIN == 0)`. At that gate, the independent platform classifier result `0x140C04 == 3` selects internal row **2**, and any other classifier result selects internal row **1**. Otherwise internal row **0** remains selected.
+- This code path reads its inputs from the EC and classifier; there is **no proven connection to `CpuSetup+0x2F/+0x35`**, `QFAN` or an external direct manual PL1/PL2 setter. The static labels `ACIN`, `BTIN`, `RSOC`, `TSR6` are grounded in the installed ACPI field; do not guess the product semantics of `EC[0xA9]` or turn a mode index into a fan preset.
+
+**Progress checkpoint:** the previously defined selected `ThermalSmm package-power-policy` denominator moves from **2/4 = 50% to 3/4 = 75%**: (1) native write contract, (2) policy row table/selector, (3) registration and ACPI SW-SMI trigger path are statically confirmed. Remaining gate (4) is target execution/operational validation and a verified safe interface if any. The distinct **CpuSetup -> PL1/PL2 -> OS setter** scope remains **2/4 = 50%** (no target `CpuSetup` field-to-writer edge). Do not generalize either percentage to CPU tuning, Manager readiness or a flashable firmware.
+
+Evidence:
+- `corpus/control-modules/TM2309_2024-06-04_ThermalSmm_8C916319-1334-419A-9F2C-976CABFDBBCA_PE32.efi`, PE entry `0x1234`, registration `0x1428..0x14E1`, callback `0x16A0`, writer `0x14F0..0x169D`;
+- `corpus/acpi-2024-06-04/TM2309_2024-06-04_DSDT_INTEL_SKL.dsl`, methods/fields `_Q35`, `SPRT` and `SSMP`;
+- UEFI reference protocol identity/signature: `https://github.com/tianocore/edk2/blob/master/MdePkg/Include/Protocol/SmmSwDispatch2.h`.
