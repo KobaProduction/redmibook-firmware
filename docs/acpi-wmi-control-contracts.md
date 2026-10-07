@@ -573,3 +573,25 @@ A targeted corpus pass searched 41 distinct retained native EFI PE images (dedup
 **Next genuine decision boundary:** resolve the producer of the dynamic OEM SMI-number fields or obtain safe existing-platform runtime evidence of which `0x82` subcommands exist. This is **not** permission to experimentally write to `0xB2/0xB3` or to probe BIOS defaults/Secure Boot commands. The selected HQWI S5/RTC scope remains **2/4 = 50%**; the byte-width proof refines the transport but does not establish accepted semantics or OS/hardware execution.
 
 Evidence: `corpus/acpi-2024-06-04/TM2309_2024-06-04_SSDT_HQNVS000.dsl` (`HSMI`, `WM01`, `WMAB`); `corpus/acpi-2024-06-04/TM2309_2024-06-04_DSDT_INTEL_SKL.dsl` (`CMDE`, `ECD2`); `corpus/smm-hqwi-candidates/OemSmmServiceBody.efi`, and the retained SMM PE candidate corpus.
+
+### Producer of the OEM dynamic software-SMI numbers (2026-10-08)
+
+**CONFIRMED installed-image static cross-module pointer/protocol chain; actual runtime overrides, successful registrations, and HSMI 0x82 owner UNKNOWN.**
+
+The preceding bounded inventory identified the OEM `OemSmmServiceBody` candidate because it registers three software-SMI callbacks using bytes `+0x03/+0x05/+0x06` of an indirect configuration structure. The **source of those bytes is now traced back to a specific DXE producer**, rather than merely described as unknown dynamic configuration.
+
+1. **DXE owner — `OemDataServiceBodyDxe.efi`:** initialization allocates a 0x60-byte owner object and a separate 0xDA-byte OEM configuration buffer (`0x69D..0x6C8`). It stores the buffer pointer at owner `+0x28` (`0x751`), then installs **Boot Services protocol `B3C64BAC-6FA2-485F-9697-B512943F9E1A`** (`0x799..0x7A4`) with interface base at owner `+0x20`. Thus the installed interface's `+0x08` member points to the 0xDA-byte OEM configuration buffer. The initializer `0x9AC` loads that buffer and writes a dword `0xC8B2030A` at buffer `+0x00` (`0xA2B`) and word `0xC5C9` at `+0x05` (`0xA31`), establishing *initial* bytes `config[3]=0xC8`, `config[5]=0xC9`, `config[6]=0xC5`. This is an **initialization** contract, not a runtime assertion that other OEM hooks cannot modify those bytes.
+2. **SMM bridge — `OemDataServiceBodySmm.efi`:** locates that Boot Services protocol using the same GUID (GUID RVA `0x2080`, instructions `0x1726..0x1743`); reads the `[DXE_interface+0x08]` configuration pointer at `0x1876..0x1882` and stores it in a new SMM-owned object's `+0x30`. It installs **SMM protocol `E56D11C4-5E78-4610-9C73-CD9A0A63E096`** at `0x1860..0x18C6`, with interface base at that SMM object `+0x28`. Therefore this SMM interface's `+0x08` member points to the same OEM configuration buffer. This resolves the two-level ABI without confusing an object offset with an interface-relative offset.
+3. **SMM consumer — `OemSmmServiceBody.efi`:** locates the E56D SMM protocol (`0x1585..0x1599`) into its owner object, dereferences its `[interface+0x08]` data pointer at `0x167F..0x168B`, and reads `config[3]`, `config[5]`, `config[6]` at `0x168B`, `0x16D8`, `0x1725`. If a value passes the driver's input guard, each is supplied as the `EFI_SMM_SW_REGISTER_CONTEXT.SwSmiInputValue` when registering callbacks `0x13C4`, `0x13F4`, `0x17EC`, respectively.
+
+| Proven DXE initializer slot | Initial SW-SMI number | Registered SMM callback | Notes |
+| ---: | ---: | ---: | --- |
+| `config+0x03` | `0xC8` | `0x13C4` | Callback performs another SMM service/protocol action; not a proven wake setter |
+| `config+0x05` | `0xC9` | `0x13F4` | Callback performs another SMM service/protocol action; not a proven wake setter |
+| `config+0x06` | `0xC5` | `0x17EC` | Callback uses further OEM metadata/service dispatch; semantics not fully named |
+
+An independent read-only byte-level audit verified both GUID identities, the two exact DXE initializer instructions and the default slot map. **None of these three factory-initialized SW-SMI values equals `0x82`**. This **eliminates the proposed OemSmmServiceBody default-registration path as evidence for the Huaqin `HSMI(value, 0x82)` handler**. It does **not** prove there is no command `0x82` owner elsewhere in the installed firmware: one of the referenced objects may be patched by an OEM hook at runtime, an unextracted SMM module may register it, or the processing may use another service.
+
+**Remaining gates unchanged:** the Huaqin S5/RTC wake interface investigation remains **2/4 = 50%**. The default dynamic SMI config path is now statically grounded, but the accepted wake payload encoding/domain and target-machine OS/wake execution remain UNKNOWN. Do not trigger software SMIs or change CMOS/EC wake state as a discovery probe.
+
+Primary evidence: extracted installed `corpus/analysis-modules/TM2309_2024-06-04_OemDataServiceBodyDxe.efi`; `corpus/analysis-modules/TM2309_2024-06-04_OemDataServiceBodySmm.efi`; `corpus/smm-hqwi-candidates/OemSmmServiceBody.efi`. Evidence is instruction-level static proof, not board execution.
