@@ -69,3 +69,17 @@ Build success is not hardware acceptance. A booting image is not by itself a pro
 The current priority remains behavior recovery and classification, not writing replacement modules prematurely.
 
 The most valuable recovered areas currently include embedded-controller state, performance/fan profiles, battery/charging behavior, keyboard/backlight behavior, ACPI/WMI control surfaces and native firmware consumers of those states.
+
+
+## Current execution priority
+
+The near-term project priority is intentionally narrower than full firmware replacement.
+
+1. Close the user-relevant hardware-control contracts exposed by the factory firmware.
+2. Materialize those contracts as stable semantic capabilities for RedmiBook Manager.
+3. Use Manager on real hardware to obtain execution proof for recovered controls and telemetry.
+4. Continue deeper firmware replacement only after the useful platform-control surface is understood and exercised.
+
+Firmware research should currently prioritize controls that unlock concrete Manager capabilities over exhaustive recovery of unrelated standard UEFI modules.
+
+Full open-firmware replacement remains the long-term goal, but it is not the immediate blocker for delivering useful hardware control.
