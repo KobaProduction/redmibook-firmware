@@ -207,3 +207,13 @@ Current Manager implementation choices remain:
 3. later replace that transport with OpenFirmwareBackend telemetry without changing the semantic capability.
 
 Do not treat the existence of the ACPI descriptor as proof that ordinary user-mode Windows code can already read it.
+
+## Bounded immediate-address EC access inventory (2026-10-07)
+
+**CONFIRMED bounded static machine-code scan; indirect/computed routes remain unexcluded.**
+
+A read-only `objdump` scan deduplicated by full-file SHA-256 across the retained `corpus/**/*.efi` examined **41 unique PE images**, collecting native x86-64 instruction operands with literal `0xFE0B03xx` addresses. It identified 26 matching operands addressing ten distinct offsets: `00, 01, 03, 18, 60, 80, 81, 92, AC, B2`. Explicit QFAN writes at byte `0x60`, USB/wake packed-byte writes at `0x18`, keyboard policy at `0xB2`, and charging threshold at `0xAC` arise from the previously recovered `HQDxeService` path. The ODM module's `0x80/0x81/0x92` uses are **reads** for its battery/adapter advisory method, not a fan setter. Other immediate reads involve OEM/version state fields.
+
+**No additional fine-fan-duty write was identified by this literal-address scan.** This must **not** be reported as proof that no such writer exists: a native consumer could compute an address from the `ERAM` base, write through a pointer, call another EC service, reside in a missing firmware module, or use a different bus/transport. The explicit scan remains a bounded negative-result artifact, not device-hardware acceptance.
+
+The fine-fan route remains **3/5 = 60%** on the established denominator: persisted semantics + UI model + examined OEM provider are known; hardware apply and safe OS reachability remain open. Do not increase this metric from negative scans.

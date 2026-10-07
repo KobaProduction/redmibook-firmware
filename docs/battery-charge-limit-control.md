@@ -143,3 +143,23 @@ A significant compatibility hazard was also demonstrated: a generic third-party 
 
 Published evidence:
 - https://lkml.rescloud.iu.edu/2609.3/14028.html
+
+## OemODMDxeDriver OEM battery advisory (2026-10-07)
+
+**CONFIRMED static firmware behavior; the product meaning of its thresholds and OS reachability remain UNKNOWN.**
+
+The June native DXE module `OemODMDxeDriver.efi`, which publishes OEM protocol GUID `754F7701-3C51-4F73-8FEF-314FDFA6DC5B`, registers a separate read-only diagnostic method `0x1BE0` at object slot `+0x48` (interface-relative `+0x20` when the interface base is at object `+0x28`). This is **not** the unsupported fan-variant method at interface-relative `+0x48`.
+
+Machine instruction route `0x1BE0..0x1C4F`:
+
+- reads `ERAM+0x80` (packed `ACIN/BTIN/BTST/FCST/PWRV` status), `ERAM+0x81` (`ADPW`) and `ERAM+0x92` (`RSOC`); these raw identities come independently from the installed ACPI DSDT field layout;
+- obtains one OEM classifier through local helper `0x2D04(0x140C04, ...)`. When that classifier equals `3`, sets output byte `+0` according to unsigned `ADPW >= 0x85`; otherwise tests `ADPW >= 0x5F`. **Do not assign watts or a battery policy label to this raw threshold flag without further evidence**;
+- writes `RSOC` to output byte `+5`;
+- **only conditionally** writes output byte `+2` to `1` if `BTIN` (`ERAM+0x80 bit1`) is set, the preceding threshold flag is zero, and `RSOC <= 10`; otherwise that byte is not written in the shown routine. This is an OEM low-charge advisory condition candidate, not a verified standalone battery alarm API;
+- returns zero/firmware success; it does not write an EC register or set the charge limit.
+
+The routine adds a **native BIOS-side battery/adapter status producer** to the inventory. It is separate from the confirmed **OS-visible** MIFS battery charge-protection route. No Windows caller, supported user-mode path or real-machine validation is established for this OEM method; do not expose the derived thresholds as public controls or physical charger-power claims.
+
+Evidence: retained `corpus/oem-protocol-candidates/OemODMDxeDriver.efi` instructions `0xA61..0xA68`, `0x1BE0..0x1C4F`; installed `corpus/acpi-2024-06-04/TM2309_2024-06-04_DSDT_INTEL_SKL.dsl`, `ERAM` field.
+
+**Selected OEM battery diagnostic route (new scope): approximately 75% (3/4 evidence gates).** Closed: interface-method linkage, EC field meanings, and exact output-flag algorithm. Open: reliable OS access/target execution. This percentage is *not* global battery-feature progress and does not turn firmware-static analysis into hardware proof.
