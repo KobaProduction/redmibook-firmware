@@ -480,3 +480,27 @@ The same runtime report also documents a firmware response quirk: successful SET
 Published evidence:
 - https://lkml.rescloud.iu.edu/2609.3/14028.html
 - https://lkml.iu.edu/2609.3/14043.html
+
+
+## Huaqin S5 wake and RTC-wake routes
+
+**CONFIRMED — static target ACPI route, installed 2024-06-04 AML; argument domain and physical outcome UNKNOWN.**
+
+The distinct Huaqin WMI device \`\\_SB.HQWI\` implements two S5-related commands, separate from the MIFS \`WMAA\` interface:
+
+- \`WM01\`, low command selector \`0x03\`: interpret the input as an integer, invoke \`HSMI(value, 0x82)\`, and, when \`\\_SB.PC00.LPCB.Q_EC.ECD2\` exists, invoke \`ECD2(0xDD, value)\`. The returned success **string is unconditional** and is not proof that the EC or S5 wake policy accepted the value.
+- \`WMAB\`, \`Arg1 == 1\`: interpret the input as an integer, prepare CMOS index/data access \`0x72/0x73\`, invoke \`HSMI(value, 0x82)\`, wait 5 ms, then read CMOS index \`0x61\`. It returns a success string only when the readback byte equals zero, otherwise a failure string. This is the route whose firmware-facing text identifies **S5 RTC wake**.
+
+The \`HSMI\` helper uses SystemIO \`0xB3\` for its first argument and \`0xB2\` for its second argument. The DSDT \`ECD2\` helper waits for \`EC6C.bit1\` (busy) to clear, writes its first argument to EC command port \`EC6C\`, waits again, writes its second argument to EC data port \`EC68\`, and waits once more. This establishes the EC-side command transport, **not** the valid input range or an observed wake event.
+
+The two retained ACPI \`HQNVS000\` AML tables dated 2024-04-07 and 2024-06-04 are byte-identical (matching SHA-256 in the extracted corpus). Both WMI routes are therefore present in the installed static image. The distinction from MIFS, the command argument's bit semantics, actual OS-client reachability, RTC timing representation, and target-machine execution are still separate gates. Neither route should be published as an unrestricted runtime setter.
+
+Evidence: \`corpus/acpi-2024-06-04/TM2309_2024-06-04_SSDT_HQNVS000.dsl\` (\`WM01\`, \`WMAB\`, \`HSMI\`); \`corpus/acpi-2024-06-04/TM2309_2024-06-04_DSDT_INTEL_SKL.dsl\` (\`ECD2\`). 
+
+## OEM-derived fan preset encoding variant
+
+**CONFIRMED only in the analyzed 2024-04-07 H2O UI module; installed 2024-06-04 code comparison pending.**
+
+The saved \`H2ODisplayEngineLocalMetroDxe\` analysis contains one writer of a raw 0/1 variant state (older program address \`00079F8C\`): \`InitializePlatformControlInterfaceModel\` calls OEM protocol GUID \`754F7701-3C51-4F73-8FEF-314FDFA6DC5B\` at vtable slot \`+0x48\`, supplying the state as an output argument, and sets it to zero if the provider call fails. \`UpdatePlatformControlSetupSelection\` and \`ResolveSetupUiProviders\` use the result to translate the UI \`Medium\` Turbo fan-speed selection to/from the stored raw values 1 or 2. Thus the raw encoding is **OEM-provider-variant-dependent**, not a globally fixed code.
+
+Do not infer the active TM2309 installed-firmware variant or physical fan behavior from the older UI path or the source image's initial data byte. The installed 2024-06-04 H2O program's behavior index was unavailable during this check; a targeted refresh timed out upstream, so verification against the installed native code remains open.
