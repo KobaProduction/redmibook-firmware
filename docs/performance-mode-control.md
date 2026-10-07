@@ -139,6 +139,8 @@ The firmware returns the literal status string `Set performance mode Success!`.
 
 This is a second firmware-visible route to the same canonical semantic object `EC_PERFORMANCE_MODE`; it is not a separate mode enum.
 
+The HQWI ACPI `_WDG` resolves this route to **Huaqin method GUID `657B6048-310C-4A90-A211-10A17922A0AF`** (object ID `01`, one instance, WMI method + ASCIZ-string flags `0x06`, ACPI method `WM01`, operation index `0x09`). This **is not** the MIFS WMAA GUID or the MIFS 32-byte packet ABI. Its OS-client availability and string/value marshaling on this specific laptop are unverified, so prefer the separately validated MIFS profile route for future Manager capability discovery.
+
 ## Event synchronization
 
 Evidence state: **CONFIRMED**.

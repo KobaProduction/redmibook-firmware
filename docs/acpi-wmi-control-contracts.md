@@ -530,3 +530,32 @@ A deduplicated (by binary SHA-256) read-only scan of the retained EFI module cor
 This significantly narrows the **retained candidate corpus**: no second installer is established by the inspected direct GUID references. It is **not** proof of exclusivity in the entire factory volume, because GUID indirection or an unextracted provider remains possible. With the confirmed ODM slot returning `EFI_UNSUPPORTED`, the BIOS UI's fallback branch has a concrete explanation for that implementation. No independent route has yet linked `SystemConfig+0xF5..+0xF8` to a live EC fan-duty/mode write.
 
 **Progress denominator unchanged:** the fine-fan route remains **3/5 (60%)** against the preceding checkpoint. Runtime apply and safe OS access are still open. Do not increase the score for negative candidate screening alone.
+
+## Huaqin WMI GUID/object discovery (2026-10-08)
+
+**CONFIRMED — installed factory ACPI `_WDG` metadata and method bodies; operating-system client execution and accepted wake argument values UNKNOWN.**
+
+The second, independent TM2309 `PNP0C14` device `\\_SB.HQWI` (UID 0) exposes a static `_WDG` buffer of exactly `0x3C = 60` bytes, holding three 20-byte WMI GUID blocks. Decode the 128-bit GUID fields in the standard mixed little-endian ACPI WMI representation; do not treat the first 16 bytes as a big-endian display UUID.
+
+| ACPI/WMI GUID | Object ID | Instances | Flags | Target method / contract |
+| --- | --- | ---: | ---: | --- |
+| `05901221-D566-11D1-B2F0-00A0C9062910` | `00` | 1 | `0x00` | Standard WMI BMOF/metadata data block, backed by the target's `WQ00` buffer; **not a separate hardware control method** |
+| `657B6048-310C-4A90-A211-10A17922A0AF` | `01` | 1 | `0x06` | Huaqin `WM01` method group, including S5 wake selector `0x03` and alternative performance-mode selector `0x09` |
+| `F80A5498-23F3-4053-A244-B39067EC476F` | `AB` | 1 | `0x06` | Huaqin `WMAB` method group, including RTC wake method index `1` |
+
+For the latter two entries, flags `0x06` are **WMI method (0x02) | ASCIZ string (0x04)**, not an asynchronous WMI event. The Linux ACPI WMI interface documentation specifies these flags and the `WMxx` name construction; the GUID values and method bodies themselves are established by the retained TM2309 AML.
+
+The firmware method ABI is **ACPI `WM01(Arg0, Arg1, Arg2)` / `WMAB(Arg0, Arg1, Arg2)`**: `Arg0` is the WMI instance, `Arg1` selects the operation inside the GUID, and `Arg2` contains the payload. The firmware converts selected wake/performance payloads using `ToInteger(Arg2)` and returns literal text such as `CONFIG S5 WAKE SUCCESS!` / `CONFIG S5 RTC WAKE FAIL!`. **Do not infer a fixed 32-byte MIFS binary packet** or an accepted numeric range from this string-flagged interface.
+
+**Per-method boundaries:**
+
+- `WM01`, `Arg1 & 0xFF == 0x03`: the previously recovered S5 wake path calls `HSMI(value,0x82)` and optionally EC `ECD2(0xDD,value)`. Its success string is unconditional and **not** a readback/validation guarantee.
+- `WM01`, `Arg1 & 0xFF == 0x09`: writes the parsed mode into EC `QFAN` through guarded ACPI helpers and calls `NTDP`; this is an alternate method surface for the **same profile state**, not a distinct fan curve or a new mode enum. Conditional helper existence and exact OS-side marshaling remain relevant.
+- `WMAB`, `Arg1 == 1`: invokes the HSMI/CMOS RTC wake path and reports success only if CMOS index `0x61` reads zero; `Arg1 == 2` returns a fixed text token `0x00013100`, whose product meaning has not been proven.
+- `WM01` also includes **unsafe/mutating BIOS-maintenance commands** (load BIOS defaults `0x02`, secure-boot key operations `0x05/0x06`, test and boot-order settings). These must **not** be surfaced as ordinary user controls or probed for capability detection.
+
+The WMI GUIDs show **OS discoverability in the factory AML**, not proven Windows/Linux API access, input validity, hardware wake behavior, or safe caller-side validation. Code must not use write commands as discovery probes. The installed 2024-06-04 `HQNVS000` AML and retained 2024-04-07 counterpart are byte-identical, so the three blocks and methods are stable across both imaged versions.
+
+**Selected HQWI S5/RTC wake investigation (new fixed four-gate metric): 25% -> 50% (1/4 -> 2/4).** Known before this pass: SMI/EC wake-command transport. Newly closed: exact `_WDG` GUID/object IDs, string/method flags and ACPI WMI dispatch. Still UNKNOWN: accepted and safe wake argument encoding/domain, and actual OS-client/hardware wake acceptance on the target. This is not whole platform-power coverage.
+
+Evidence: `corpus/acpi-2024-06-04/TM2309_2024-06-04_SSDT_HQNVS000.dsl` `_WDG`, `WM01`, `WMAB`, `HSMI`; byte-identical `corpus/acpi-2024-04-07/TM2309_2024-04-07_SSDT_HQNVS000.aml`. WMI block flags/naming spec: https://www.kernel.org/doc/html/v6.6/wmi/acpi-interface.html .
