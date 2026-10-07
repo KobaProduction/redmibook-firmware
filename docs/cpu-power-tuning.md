@@ -213,3 +213,31 @@ The native `PlatformInitAdvancedDxe.efi` also contains several real `WRMSR` inst
 **Report checkpoint:** PL1/PL2 static-to-OS route remains **2/4 = 50%**, unchanged from the preceding checkpoint. The remaining steps are a verified native consumption/programming edge for the actual `CpuSetup` limit fields and a safe runtime/OS access path. For the `SetupCpuFeatures+0x1A` subproblem, the only presently closed fact is that it exists as an HII visibility gate; a named consumer at **other offsets** does not make its producer known.
 
 Evidence: retained installed modules `corpus/analysis-modules/TM2309_2024-06-04_PlatformInitAdvancedDxe.efi`, `corpus/analysis-modules/TM2309_2024-06-04_MeSmbiosUpdateConfig.efi` and existing HII form inventory. Only static PE disassembly; no target execution or NVRAM modification.
+
+## ThermalSmm native package power-limit writer (2026-10-08)
+
+**CONFIRMED static x86-64 MSR write and three-row data table on the installed 2024-06-04 image; caller reachability, actual runtime effect, and connection to `CpuSetup` are UNKNOWN.**
+
+A targeted PE executable-section inspection found a concrete candidate for **native RAPL power-limit programming** in `ThermalSmm` (FFS GUID `8C916319-1334-419A-9F2C-976CABFDBBCA`). Its writer routine at RVA `0x14F0` reads EC status through the serialized legacy ports `0x66/0x62` (helper `0x1C6C`), queries one OEM platform classifier `0x140C04`, selects one of three data rows, and executes these read/modify/write MSR operations:
+
+- `0x65C`: `mov edi,0x65C` at RVA `0x159F`; `RDMSR` at `0x15C2`, `WRMSR` at `0x1613`. Its two candidate raw policy values are shifted left by three and combined with preserved register bits, with the low/high 0x8000 enable bits set in the constructed halves.
+- **`0x610` (IA32_PACKAGE_POWER_LIMIT / MSR_PKG_POWER_LIMIT)**: `lea ecx,[rdi-0x4C]` at `0x1615`, `RDMSR` at `0x1618`, `WRMSR` at `0x1656`. This is a **direct hardware-register programming code path**; the selected pair of table values is shifted left by three and inserted into the low/high power-limit fields while preserving the other bits.
+- `0x601`: `lea ecx,[rdi-0x5B]` at `0x1658`, `RDMSR` at `0x165B`, `WRMSR` at `0x1687`; a third table value is shifted left three and inserted into a masked low-bit field. Keep this register's functional owner neutral until its exact target semantics are verified.
+
+The data table at RVA `0x20F0` is made of three six-dword rows: a **raw 0/1/2 row selector** and five encoded values. The exact native row literals are:
+
+| Internal row | MSR 0x610 low field source | MSR 0x610 high field source | MSR 0x601 field source | MSR 0x65C low field source | MSR 0x65C high field source |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | 50 | 50 | 75 | 56 | 64 |
+| 1 | 70 | 115 | 215 | 87 | 95 |
+| 2 | 45 | 43 | 105 | 56 | 61 |
+
+All five values are shifted by `<<3` before insertion. **These are native table values, not verified watt limits or a user-facing Normal/Gaming/Office/Turbo mapping.** The mode-selection branches depend on the platform-classifier comparison against `3` and several EC bytes, including raw offsets `0x80`, `0x92`, `0xA9`, and `0x0E`. The precise product meanings of all predicates and their potential relationship to `QFAN` remain unproved. Importantly, this function does not show a `CpuSetup+0x2F/+0x35` input or a setup-variable read.
+
+**Release comparison:** the .text section bytes and the above three data rows are byte-identical in the retained `ThermalSmm` images dated 2024-04-07 and 2024-06-04, despite different PE file packing/section raw sizes.
+
+**Reachability caveat:** no inbound direct `call`, `jmp`, or RIP-relative code reference to RVA `0x14F0` was identified in a bounded `objdump` search (apart from an internal same-routine branch at `0x16A0`). A possible SMM dispatch/indirect callback edge is **not confirmed**. Presence of this writer routine is **implementation/static proof only**, not proof that it executes on TM2309 hardware under any selectable policy. Do not expose a PL1/PL2 setter from this finding.
+
+**Report checkpoint definitions:** the earlier selected **CpuSetup→PL1/PL2→safe OS control** investigation stays **2/4 = 50%**, because the missing `CpuSetup` field-to-actual-writer edge is not closed. A newly tracked **ThermalSmm package-power-policy investigation** stands at **2/4 = 50%**: (1) exact MSR writes and (2) row literals/selection structure are static-confirmed; (3) actual dispatch/entrypoint reachability and (4) safe execution/OS accessibility remain open. This new 50% is scoped to this SMM branch and is not the total CPU-power coverage.
+
+Evidence: `corpus/control-modules/TM2309_2024-06-04_ThermalSmm_8C916319-1334-419A-9F2C-976CABFDBBCA_PE32.efi` (instructions `0x14F0..0x169D`, table `0x20F0..0x2137`) and retained 2024-04-07 counterpart. No device memory/register writes or hardware probes were performed during this analysis.
