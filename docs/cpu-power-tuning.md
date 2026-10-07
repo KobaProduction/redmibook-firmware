@@ -173,3 +173,15 @@ Current semantic status:
 3. determine whether the values can be changed safely at runtime or require reboot;
 4. identify the dynamic voltage-control producer and target-specific offset/sign encoding;
 5. determine whether silicon/firmware locks make voltage offsets unavailable on this exact machine.
+
+## Native CpuSetup variable consumers (2026-10-07 checkpoint)
+
+**CONFIRMED — installed firmware static machine-code evidence, not power-limit hardware application.**
+
+The extracted June `PolicyInitAdvancedDxe.efi` contains the genuine `CpuSetup` variable GUID `B08F97FF-E6E8-4193-A997-5E9E9B0ADB32` at file/RVA `0x3D20` and the `CpuSetup` UTF-16 name at `0x49C0`. Its instruction path `0xD24..0xD4E` prepares an explicitly sized `0x5E0` buffer and calls the UEFI runtime-services `GetVariable` slot `+0x48`. This confirms a native consumer of the CPU configuration, beyond HII/IFR question existence.
+
+An independent native `CpuSetup` read is present in `AdvancedAcpiDxe.efi` (GUID at `0xDB70`, name at `0xDF70`, call at `0x2262`, same size `0x5E0`). Additional extracted GUID/name carriers include `PlatformInitDxe` and `PlatformInitAdvancedSmm`, but their specific downstream field consumers have **not** been established by this bounded scan. Module inventory does not by itself prove use of PL1/PL2 bytes.
+
+The next evidence boundary is **data flow from `CpuSetup+0x2F/+0x35` and processor overrides through a native policy/CPU power-management consumer to the actual power-control programming**. This trace is not closed by the variable reads alone. `SetupCpuFeatures+0x1A` remains semantically UNKNOWN.
+
+**Investigation checkpoint (selected PL1/PL2 control route only): 25% → 50%, 1/4 → 2/4 gates.** Covered: target HII/VarStore fields and at least one verified native GetVariable consumer. Open: concrete hardware policy/programming link and safe live/OS apply. This is neither board execution proof nor an estimate of overall CPU tuning support.
