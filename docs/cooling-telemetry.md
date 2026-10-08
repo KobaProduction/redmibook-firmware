@@ -236,3 +236,22 @@ The fine-fan route remains **3/5 = 60%** on the established denominator: persist
 Across retained April/June DSL tables, `ERCF`, `ERPN`, `ERSP`, `ERPC` occur only as externally declared methods and/or consumers, not defined methods. Thus PTID raw fan telemetry descriptors exist, but the actual EC method implementation/scale is **not recovered from the retained ACPI subset**. The separate EC SMA2 identity/mailbox address `0xFE0B0A00` is not covered by this ERAM-only scan.
 
 **Fine CPU/GPU fan policy remains 3/5 = 60%** (HII semantics, persisted UI, observed OEM provider). Actual EC apply and safe OS control remain unknown; raw hit counts are not a new closure.
+
+
+## Installed A0A DPTF EC thermistor telemetry (2026-10-08)
+
+**CONFIRMED STATIC, execution/board UNKNOWN.** The target DSDT Q_EC operation region, DptfTabl thermal participants and PDatTabl selectors provide five named firmware temperature read routes independent of the unresolved PTID fan-RPM methods.
+
+| DPTF object | Installed ACPI label | EC field | ERAM byte |
+| --- | --- | --- | --- |
+| SEN1 | Thermistor CPU VR | TSR3 | 0x0B |
+| SEN2 | Thermistor CPU | TSR4 | 0x0C |
+| SEN3 | Thermistor Ambient | TSR6 | 0x0E |
+| SEN4 | Thermistor Charger | TSR7 | 0x0F |
+| SEN5 | Thermistor Memory | TSRA | 0x12 |
+
+Installed DptfTabl uses CTOK to produce ACPI temperature in **tenths of a kelvin** from a raw field: raw * 10 + 2732. The five names and data conversions are a confirmed static sensor contract, not proof that five distinct physical sensors provide valid readout on this laptop. Prefer to check existing Windows/Intel DPTF or standard OS read-only temperature providers before considering privileged raw EC access.
+
+Separately, generic Ther_Rvp ACPI declares FAN0..FAN4 power resources, but its fan staging delegates through the base UPFS method to H_EC.UPFS. H_EC is absent from the retained installed ACPI table set. These are **not evidence of five physical fans or a usable manual fan setter**. Fine fan preset hardware application remains 3/5 = 60%; target Windows sensor execution remains unverified.
+
+Reproducible A0A-only checks: tm2309_dptf_power_thermal_trace.py (ACPI checksums, source method references and CTOK formula) and tm2309_cpu_pnvs_layout.py, using the SHA-256-guarded primary firmware corpus.

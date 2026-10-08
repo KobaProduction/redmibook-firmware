@@ -370,3 +370,25 @@ Native `AdvancedAcpiDxe` reads CpuSetup and DptfConfig at `0x286E` / `0x2906`. A
 **New five-gate cTDP capability/configuration route: approximately 60% (3/5).** Closed: exact HII layout, real feature producer/Intel MSR semantics, native IPF-lock arbitration. Open: effective cTDP hardware programming and safe OS/device execution. The earlier CpuSetup PL1/PL2-to-OS route remains 2/4=50%; the separate automatic ThermalSmm route remains 3/4=75%.
 
 Primary evidence: installed A0A/B0B SetupUtility native `0x6970..0x6D7E`, `0x2758C..0x275AE`; IFR `0x176BAD..0x1770A0`; native AdvancedAcpiDxe `0x283C..0x2AA7`. Byte/IFR/branch truth-table assertions all passed.
+
+
+## CPU NVS producer and ACPI PPCC publication — installed A0A (2026-10-08)
+
+**CONFIRMED STATIC:** The previously unknown native provider of CPU NVS protocol B9CF3F43-BE3E-4E45-A0BE-1A0489DF1AC9 is DxeCpuPowerManagement. At RVA 0xC09 it stores a pointer to the CPU NVS region in its local global 0x2690, initializes 0x126 bytes, and at 0x11BC..0x11DE passes the GUID and the **address of the global pointer** to EFI_BOOT_SERVICES.InstallMultipleProtocolInterfaces (Boot Services +0x148). This is protocol installation, not another consumer. Successful execution on the actual machine is unverified.
+
+The same DXE module locates that protocol through Boot Services +0x140 and patches the CpuSsdt PNVS region's dynamic base address and size 0x126. CpuInitDxe independently locates the same protocol at 0xA8B..0xA92 and registers a protocol-notification callback at 0x1121, but is not its native installer. In the complete set of **317 SHA-256-unique directly extractable PE images of installed A0A**, only these two modules carry the exact CPU NVS GUID (two RIP-relative code references each). This direct-GUID census does not exclude indirect aliases or modules outside the parsed PE corpus.
+
+| CpuSsdt PNVS fields | NVS offsets | Native width |
+| --- | --- | --- |
+| CLVL / CBMI | +0x0E / +0x0F | 8-bit |
+| PL10 / PL11 / PL12 | +0x10 / +0x12 / +0x14 | 16-bit |
+| PL20 / PL21 / PL22 | +0x16 / +0x18 / +0x1A | 16-bit |
+| PLW0 / PLW1 / PLW2 | +0x1C / +0x1D / +0x1E | 8-bit |
+
+Installed DptfTabl.PPCC uses CPL0/CPL1/CPL2 to read mode-selected PL1, PL2 and window fields from CPU PNVS. The dynamic publisher and consumer are thus linked, **but the native producer of each numerical PL limit, effective MSR programming, active ACPI/Windows publication and any safe OS setter remain UNKNOWN**. A scoped candidate scan found no directly attributable 16-bit stores to the six PL offsets from the module's NVS-global pointer; it cannot exclude indirect stores or other consumers.
+
+**Scoped CPU NVS publication route: 3/4 = 75%** (DXE interface producer, CpuSsdt PNVS patch, DPTF PPCC consumer; OS execution/limit-field provenance open). This is a new, separate denominator. Established cTDP 3/5 = 60%, CpuSetup-to-PL1/PL2 safe control 2/4 = 50%, and automatic ThermalSmm policy 3/4 = 75% are unchanged.
+
+**CONTRADICTION — ThermalSmm GPIO pad-read assumption:** Installed GpioV2ProtocolInitSmm maps its direct-value read method to interface +0x50 and its 32-bit-value write method to +0x58. The ThermalSmm classifier passes a pointer to a local result buffer into +0x58, then reads that buffer back as if it had been filled. This is a proven static caller/provider ABI discrepancy, not proof of target-hardware malfunction. Do not promote the resulting GPIO-selected RAPL/VR row to hardware-validated or expose it as a user-settable policy before actual protocol binding and call semantics are resolved.
+
+Reproducible A0A-only checks are retained in the research workspace scripts: tm2309_cpu_pnvs_producer_census.py, tm2309_cpu_pnvs_callsite_trace.py, tm2309_cpu_pnvs_layout.py, tm2309_cpu_nvs_state_producer.py, tm2309_cpu_nvs_field_writers.py, tm2309_cpu_pnvs_protocol_trace.py and tm2309_gpio_abi.py.
