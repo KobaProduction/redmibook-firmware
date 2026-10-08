@@ -255,3 +255,12 @@ Installed DptfTabl uses CTOK to produce ACPI temperature in **tenths of a kelvin
 Separately, generic Ther_Rvp ACPI declares FAN0..FAN4 power resources, but its fan staging delegates through the base UPFS method to H_EC.UPFS. H_EC is absent from the retained installed ACPI table set. These are **not evidence of five physical fans or a usable manual fan setter**. Fine fan preset hardware application remains 3/5 = 60%; target Windows sensor execution remains unverified.
 
 Reproducible A0A-only checks: tm2309_dptf_power_thermal_trace.py (ACPI checksums, source method references and CTOK formula) and tm2309_cpu_pnvs_layout.py, using the SHA-256-guarded primary firmware corpus.
+
+
+## PEI fine-fan offset disambiguation in installed A0A (2026-10-08)
+
+**CONFIRMED structural evidence; live fan-preset application remains UNKNOWN.** Raw A0A PEI screening found SiliconPolicyPeiPreMem with exact byte-store displacements +0xF5, +0xF6, +0xF7 and +0xF8, numerically identical to the BIOS HII fine-fan fields. Pointer and GUID tracing proves that the destination is a **separate policy object**, not an identified SystemConfig fan-field buffer: at virtual addresses 0xFFB666DC..0xFFB666EC, the module resolves GUID C56C73D0-1CDB-4C0C-A957-EA62A9E6F50C into local pointer [EBP-0x34]; 0xFFB6799F loads it into EBX, and 0xFFB68771, 0xFFB68799, 0xFFB687A2, 0xFFB687B0 write the four byte offsets through EBX. The module also references the independent Setup GUID A04A27F4-DF00-4D42-B552-39511302113D, but the equality of offsets across different buffers is not semantic identity. Source product meaning and downstream hardware apply are still UNKNOWN.
+
+The PlatformInitPreMem reference to Setup GUID at 0xFFB5A978 is a GUID equality test that selects expected variable size 0x4B0, not a field-level fan control: test at 0xFFB5A97D and size branch at 0xFFB5A986. Its raw numeric f5..f8 literals do not prove SystemConfig fan-policy consumption. This excludes a second false positive.
+
+The scoped census covered 81 PEI FFS candidates in the installed A0A raw firmware and 16 decoded FSP PE32/TE images from one nested FV; it is not exhaustive for indirect accesses or opaque EC firmware. Confirmed HII persistence at SystemConfig+0xF5..+0xF8 remains valid. No live fan-hardware application or safe OS setter was recovered, so fine-fan route remains **3/5 = 60%**. Native source and input hashes are checked by the published read-only analysis scripts.

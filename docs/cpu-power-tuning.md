@@ -392,3 +392,16 @@ Installed DptfTabl.PPCC uses CPL0/CPL1/CPL2 to read mode-selected PL1, PL2 and w
 **CONTRADICTION — ThermalSmm GPIO pad-read assumption:** Installed GpioV2ProtocolInitSmm maps its direct-value read method to interface +0x50 and its 32-bit-value write method to +0x58. The ThermalSmm classifier passes a pointer to a local result buffer into +0x58, then reads that buffer back as if it had been filled. This is a proven static caller/provider ABI discrepancy, not proof of target-hardware malfunction. Do not promote the resulting GPIO-selected RAPL/VR row to hardware-validated or expose it as a user-settable policy before actual protocol binding and call semantics are resolved.
 
 Reproducible A0A-only checks are retained in the research workspace scripts: tm2309_cpu_pnvs_producer_census.py, tm2309_cpu_pnvs_callsite_trace.py, tm2309_cpu_pnvs_layout.py, tm2309_cpu_nvs_state_producer.py, tm2309_cpu_nvs_field_writers.py, tm2309_cpu_pnvs_protocol_trace.py and tm2309_gpio_abi.py.
+
+
+## A0A PEI-to-DXE power-policy source tracing (2026-10-08)
+
+**CONFIRMED STATIC, execution and safe OS setter UNKNOWN.** The numerical PL1/PL2 publisher is traced upstream from DXE CPU NVS to the installed IA32 PEI binary SiInitFsp (PE SHA-256 723bd6eb40ccaec27942f531845cec20e6728a8aa0f16c7ecfe4859215abf82c). Its source is the preexisting GUID Extension HOB 3996397F-19B8-4B3E-8CD3-5B37B21792FC, looked up at RVA 0xAA3..0xAAD and passed to the downstream constructor at 0xC4C..0xC50. Independently, FspInit (PE SHA-256 0d18814ed27cc8c4189104bb36c0cea73204d312b158d00ab9412a9e6ad3b7a7) resolves that same GUID at 0x352B..0x3533 and consumes the resulting pointer. These are two confirmed consumers, not proof of the original policy HOB producer or a link to CpuSetup.
+
+SiInitFsp builds a separate CPU-power GUID HOB 266E31CC-13C5-4807-B9DC-39A6BA88FF1A with 0x400 bytes of payload at 0xF882..0xF894. The 0xFD6F..0xFE2E code populates three mode-indexed PL1/PL2 fields. Platform capability and limit calculations at 0x10106..0x10368 read MSRs 0xCE, 0x648/0x649/0x64A, 0x614 and RAPL unit 0x606, with optional three-record board-policy overrides (8-byte stride, candidate values at per-record +4/+6). These values are copied from the power HOB into DXE CPU NVS and become the PPCC mode-specific capabilities in ACPI. Do not infer actual wattage before observing the CPU units, firmware flags and selected mode on the laptop.
+
+A separate native PEI action at 0x10A00..0x10D30 reads and writes package power-limit MSR 0x610 (WRMSR instructions 0x10CF7 and 0x10D30). This establishes **boot-time hardware-programming instructions**, not execution proof, OS runtime control or user CpuSetup-to-MSR provenance.
+
+**WITHDRAWN misassociation:** the two-byte status HOB 21AC65F8-96E5-43F4-A168-EF2C62E9764B is not the producer of PL1/PL2. The power-data pointer comes from 266E31CC before the later status HOB lookup. No HOB size contradiction remains.
+
+Selected CPU NVS direction stays **3/4 = 75%**, with source-policy ownership and on-device execution still open; independent cTDP **3/5 = 60%**, CpuSetup-to-safe-OS power control **2/4 = 50%**, and automatic ThermalSmm **3/4 = 75%** are unchanged. No hardware writes were executed. Verified, SHA-pinned static assertions are supplied in the attached source-only analysis-scripts corpus.
