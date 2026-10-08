@@ -4,7 +4,7 @@
 
 Основной вход: [AGENTS.md](../AGENTS.md) → [цель](RESEARCH_SCOPE.md) → [Issue #2](https://github.com/KobaProduction/redmibook-firmware/issues/2) → карта нужного домена → канонический Analysis.
 
-При «освежи контекст» открыть заново указанную обязательную цепочку, [словарь](TERMS.md), а также актуальные [hardware-reverse](https://github.com/ArthurKoba/ai-agent-workflow/tree/main/skills/hardware-reverse) / [reporting](https://github.com/ArthurKoba/ai-agent-workflow/blob/main/docs/REPORTING_PROTOCOL.md) правила. Детальные инструкции о сессиях и восстановлении Analysis — `skills/hardware-reverse/analysis-project-lifecycle.md`; не читать все документы каждого раздела просто на всякий случай.
+При «освежи контекст» открыть заново указанную обязательную цепочку, [словарь](TERMS.md), а также актуальные [reverse-analysis](https://github.com/ArthurKoba/ai-agent-workflow/blob/main/skills/reverse-analysis.md) / [reporting](https://github.com/ArthurKoba/ai-agent-workflow/blob/main/docs/REPORTING_PROTOCOL.md) правила. Детальные инструкции о сессиях, восстановлении Analysis и проверочных Java/GhidraScript — разделы **Persistent Analysis project and worker lifecycle** и **Java/GhidraScript analysis and monitored jobs** единого `skills/reverse-analysis.md`; не загружать прежние разделённые файлы.
 
 ## Рабочий цикл
 
