@@ -27,6 +27,14 @@
 - Вентиляторы, режимы, микрофон, клавиатура, дисплей, пробуждение → [карта](docs/domains/platform-controls.md).
 - [Происхождение прошивки и Analysis](docs/ARTIFACTS.md) — только общие сведения о корпусе.
 
+## Открытые исходники для реверса A0A
+
+При восстановлении **стандартных UEFI/PI/SMM-модулей** TM2309 сначала проверь соответствующие исходники, прежде чем вручную разбирать известную библиотечную реализацию. Основные ориентиры: [TianoCore EDK II](https://github.com/tianocore/edk2/tree/edk2-stable202405), [edk2-platforms](https://github.com/tianocore/edk2-platforms), [coreboot](https://github.com/coreboot/coreboot) и [Intel FSP](https://github.com/intel/FSP) (FSP может содержать только бинарные компоненты). Для уже найденных соответствий A0A есть прямые ссылки на [SmiHandlerProfile.c](https://github.com/tianocore/edk2/blob/edk2-stable202405/MdeModulePkg/Core/PiSmmCore/SmiHandlerProfile.c), [SmmSwDispatch2.h](https://github.com/tianocore/edk2/blob/edk2-stable202405/MdePkg/Include/Protocol/SmmSwDispatch2.h), [FirmwarePerformancePei.c](https://github.com/tianocore/edk2/blob/edk2-stable202405/MdeModulePkg/Universal/Acpi/FirmwarePerformanceDataTablePei/FirmwarePerformancePei.c) и [Metronome.c](https://github.com/tianocore/edk2/blob/edk2-stable202405/MdeModulePkg/Universal/Metronome/Metronome.c).
+
+Ищи соответствия по **FFS FILE_GUID, Protocol/PPI GUID, INF и именам модулей, строкам, константам и структуре вызовов/CFG**. GUID или название — только кандидат: версии, компиляторы, архитектура, оптимизация, ABI и OEM-изменения могут существенно отличаться. Подтверждай совпадение **по каждой функции** в заводском коде; не переносить всю таблицу имён, сигнатур или смещения без проверки.
+
+Найденный референс фиксируй **в каноническом Analysis**, не в параллельном отчёте: на входе модуля bookmark `EDK2_REFERENCE_MODULE_PARTIAL` со ссылкой на конкретный исходник/версию и границами соответствия; на проверенных функциях — `EDK2_SOURCE_FUNCTION_CONFIRMED`, корректные имена и доказательства. Сохранить и перечитать. Эта практика помогает разбирать нужные направления, но **не требует массово импортировать, собирать или переанализировать все модули**.
+
 ## Рабочие ограничения
 
 Текущий этап — **анализ заводской прошивки для обнаружения переносимых интерфейсов ОС (Windows И Linux)**, а не реализация приложения или собственного BIOS. Выбирать слабо раскрытую, но полезную область; использовать адресную трассировку только настолько, насколько необходимо для аппаратной связи/OS-доступности. Статус каждого семантического вывода по-русски: **Подтверждено / Вероятно / Неизвестно / Противоречие**. Не считать меню BIOS, успешный ответ или совпадение чисел доказательством аппаратного исполнения.
