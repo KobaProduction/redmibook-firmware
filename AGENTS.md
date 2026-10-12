@@ -8,6 +8,8 @@
 2. [Цель, этап и границы](docs/RESEARCH_SCOPE.md).
 3. **[Issue #2 — единственное актуальное состояние, проценты и чек-листы](https://github.com/KobaProduction/redmibook-firmware/issues/2)**.
 
+**Обязательный шлюз нового исполняемого модуля:** сразу выполнить или подтвердить полный автоанализ через job, получить Ghidra C **для всех** распознанных нативных функций и проверить/связать относящиеся к активному контуру входящие и исходящие межмодульные зависимости. Незакрытый C или существенные неизвестные ссылки — не «готовый модуль». Подробный контракт: [цель](docs/RESEARCH_SCOPE.md) → [процесс](docs/ANALYSIS_PROCESS.md). AML исследовать как ASL, не как нативный C.
+
 При команде «освежи/перечитай обязательный контекст» **дополнительно действительно открыть** [правила анализа](docs/ANALYSIS_PROCESS.md), [термины](docs/TERMS.md), корневые `AGENTS.md` / `README.md` [ai-agent-workflow](https://github.com/ArthurKoba/ai-agent-workflow), его [единый навык обратного анализа](https://github.com/ArthurKoba/ai-agent-workflow/blob/main/skills/reverse-analysis.md) и [протокол отчётности](https://github.com/ArthurKoba/ai-agent-workflow/blob/main/docs/REPORTING_PROTOCOL.md). При работе непосредственно с Analysis использовать раздел **Persistent Analysis project and worker lifecycle** в `skills/reverse-analysis.md`; для Java/GhidraScript — раздел **Java/GhidraScript analysis and monitored jobs** того же файла. При согласованной Git-фиксации — git-workflow/роль Writer и Reviewer. Не загружать их заново механически после каждого шага.
 
 ## Источники истины: не смешивать
